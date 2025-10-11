@@ -11,6 +11,7 @@ import { ViewGoalsModal } from '../../components/ViewGoalsModal';
 import { useResults } from '../../lib/results';
 import { Picker } from '@react-native-picker/picker';
 import { useLanguage } from '../../lib/language';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type GameResult = {
   id_jogo: string;
@@ -24,14 +25,15 @@ export default function ResultsScreen() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const { clusterName } = useAuth();
-  const { results, fetchResults } = useResults();
-  const [loading, setLoading] = useState(false);
+  const { results, fetchResults, loading } = useResults();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
   const [viewGoalsModalVisible, setViewGoalsModalVisible] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameResult | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>('total');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [teamAName, setTeamAName] = useState('Equipa A');
+  const [teamBName, setTeamBName] = useState('Equipa B');
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
     message: string;
@@ -47,8 +49,21 @@ export default function ResultsScreen() {
     if (clusterName) {
       fetchResults(clusterName);
       loadAvailableYears();
+      loadTeamNames();
     }
   }, [clusterName]);
+
+  const loadTeamNames = async () => {
+    try {
+      const nameA = await AsyncStorage.getItem('@team_a_name');
+      const nameB = await AsyncStorage.getItem('@team_b_name');
+      
+      if (nameA) setTeamAName(nameA);
+      if (nameB) setTeamBName(nameB);
+    } catch (error) {
+      console.error('Erro ao carregar nomes das equipas:', error);
+    }
+  };
 
   const loadAvailableYears = async () => {
     try {
@@ -81,6 +96,13 @@ export default function ResultsScreen() {
     if (selectedYear === 'total') return true;
     return new Date(result.data).getFullYear().toString() === selectedYear;
   });
+
+  const handleRefresh = async () => {
+    if (clusterName) {
+      await fetchResults(clusterName);
+      await loadAvailableYears();
+    }
+  };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToastConfig({
@@ -175,14 +197,12 @@ export default function ResultsScreen() {
               <Text style={[styles.gameDate, { color: theme.text }]}>
                 {new Date(item.data).toLocaleDateString('pt-PT')}
               </Text>
-              <TouchableOpacity
-                style={[styles.winnerButton, { backgroundColor: theme.secondary }]}
-                disabled={true}
-              >
-                <Text style={styles.winnerButtonText}>
-                  {item.vencedor === 'E' ? t('results.draw') : `${t('results.teamAWins')} ${item.vencedor}`}
+              <View style={[styles.winnerButton, { backgroundColor: theme.secondary }]}>
+                <Trophy size={16} color="#FFD700" />
+                <Text style={[styles.winnerButtonText, { marginLeft: 6 }]}>
+                  {item.vencedor === 'E' ? t('results.draw') : (item.vencedor === 'A' ? teamAName : teamBName)}
                 </Text>
-              </TouchableOpacity>
+              </View>
             </View>
             <View style={styles.teamSection}>
               <Text style={[styles.teamPlayers, { color: theme.text }]}>
@@ -363,7 +383,7 @@ export default function ResultsScreen() {
           keyExtractor={(item) => item.id_jogo}
           contentContainerStyle={styles.listContainer}
           refreshing={loading}
-          onRefresh={fetchResults}
+          onRefresh={handleRefresh}
         />
 
         {toastConfig.visible && (
@@ -476,10 +496,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 4,
     gap: 4,
-    minWidth: 120,
+    minWidth: 80,
   },
   winnerButtonText: {
     color: '#ffffff',

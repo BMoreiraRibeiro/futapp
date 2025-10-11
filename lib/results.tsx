@@ -12,20 +12,24 @@ type GameResult = {
 type ResultsContextType = {
   results: GameResult[];
   fetchResults: (clusterId?: string | null) => Promise<void>;
+  loading: boolean;
 };
 
 const ResultsContext = createContext<ResultsContextType>({
   results: [],
   fetchResults: async () => {},
+  loading: false,
 });
 
 export const useResults = () => useContext(ResultsContext);
 
 export function ResultsProvider({ children }: { children: React.ReactNode }) {
   const [results, setResults] = useState<GameResult[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const fetchResults = async (clusterId?: string | null) => {
     try {
+      setLoading(true);
       if (!clusterId) {
         setResults([]);
         return;
@@ -42,11 +46,13 @@ export function ResultsProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Erro ao buscar resultados:', error);
       setResults([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <ResultsContext.Provider value={{ results, fetchResults }}>
+    <ResultsContext.Provider value={{ results, fetchResults, loading }}>
       {children}
     </ResultsContext.Provider>
   );
