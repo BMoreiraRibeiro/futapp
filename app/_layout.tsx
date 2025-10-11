@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, StyleSheet, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -110,8 +110,10 @@ function RootLayoutNav() {
   useEffect(() => {
     const hideNavigationBar = async () => {
       try {
-        // Com edge-to-edge ativado, só precisamos definir a visibilidade
-        await NavigationBar.setVisibilityAsync('hidden');
+        if (Platform.OS === 'android') {
+          // Apenas esconde a barra - outras funções não são suportadas em edge-to-edge
+          await NavigationBar.setVisibilityAsync('hidden');
+        }
       } catch (error) {
         console.log('Erro ao configurar barra de navegação:', error);
       }

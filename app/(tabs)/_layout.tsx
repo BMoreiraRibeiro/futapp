@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2, DollarSign } from 'lucide-react-native';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
@@ -59,6 +59,8 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: theme.cardBackground,
             borderTopColor: theme.border,
+            paddingBottom: 8,
+            height: 65,
           },
           tabBarActiveTintColor: theme.primary,
           tabBarInactiveTintColor: theme.text,
