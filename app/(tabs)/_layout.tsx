@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2 } from 'lucide-react-native';
+import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2, DollarSign } from 'lucide-react-native';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../lib/auth';
@@ -93,6 +93,13 @@ export default function TabLayout() {
           options={{
             title: t('results.title'),
             tabBarIcon: ({ color }) => <Trophy size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="finances"
+          options={{
+            title: t('finances.title'),
+            tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
           }}
         />
         <Tabs.Screen
