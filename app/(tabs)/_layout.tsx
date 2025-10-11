@@ -116,7 +116,6 @@ export default function TabLayout() {
           options={{
             title: t('finances.tabTitle'),
             tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
-            href: isAdmin ? '/finances' : null,
           }}
         />
         <Tabs.Screen

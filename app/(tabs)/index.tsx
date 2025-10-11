@@ -282,6 +282,28 @@ export default function IndexScreen() {
 
       if (error) throw error;
 
+      // Inserir todos os jogadores na tabela de calotes
+      if (data && data.length > 0) {
+        const gameId = data[0].id_jogo;
+        const allPlayers = [...teams[0].players, ...teams[1].players];
+        
+        const calotesRecords = allPlayers.map(player => ({
+          cluster_id: clusterName,
+          nome_jogador: player.nome,
+          id_jogo: gameId,
+          pago: false
+        }));
+
+        const { error: calotesError } = await supabase
+          .from('calotes_jogo')
+          .insert(calotesRecords);
+
+        if (calotesError) {
+          console.error('Erro ao inserir registos de calotes:', calotesError);
+          throw calotesError;
+        }
+      }
+
       await fetchResults(clusterName);
       showToast('Jogo registado com sucesso!', 'success');
       setTeams([]);

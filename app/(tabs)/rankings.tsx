@@ -331,7 +331,10 @@ export default function RankingsScreen() {
       <View style={styles.contentContainer}>
         <Text style={[styles.title, { color: theme.text }]}>{t('rankings.title')}</Text>
 
-        <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground }]}>
+        <View style={[styles.pickerContainer, { 
+          backgroundColor: isDarkMode ? '#1a3a52' : '#e3f2fd',
+          borderColor: isDarkMode ? '#2d5f8d' : '#90caf9'
+        }]}>
           <Picker
             selectedValue={selectedYear}
             onValueChange={(itemValue) => setSelectedYear(itemValue)}
@@ -405,7 +408,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
   picker: {
     height: 52,

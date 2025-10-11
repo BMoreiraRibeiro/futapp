@@ -4,7 +4,7 @@ import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
 import { supabase } from '../lib/supabase';
 import { Toast } from './Toast';
-import { X } from 'lucide-react-native';
+import { X, ChevronUp, ChevronDown } from 'lucide-react-native';
 
 type PlayerGoals = {
   nome: string;
@@ -108,6 +108,30 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     setToastConfig(prev => ({ ...prev, visible: false }));
   };
 
+  const incrementGoals = (playerName: string) => {
+    setPlayerGoals(prev => 
+      prev.map(p => {
+        if (p.nome === playerName) {
+          const currentGoals = parseInt(p.golos) || 0;
+          return { ...p, golos: Math.min(currentGoals + 1, 99).toString() };
+        }
+        return p;
+      })
+    );
+  };
+
+  const decrementGoals = (playerName: string) => {
+    setPlayerGoals(prev => 
+      prev.map(p => {
+        if (p.nome === playerName) {
+          const currentGoals = parseInt(p.golos) || 0;
+          return { ...p, golos: Math.max(currentGoals - 1, 0).toString() };
+        }
+        return p;
+      })
+    );
+  };
+
   const handleSaveGoals = async (player: PlayerGoals) => {
     if (!player.golos || isNaN(Number(player.golos))) {
       showToast('Por favor, insira um número válido de golos', 'error');
@@ -172,25 +196,41 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
                     <Text style={[styles.teamName, { color: theme.secondary }]}>{player.equipa}</Text>
                   </View>
                   <View style={styles.goalsInputContainer}>
-                    <TextInput
-                      style={[styles.goalsInput, { 
-                        backgroundColor: theme.inputBackground,
-                        color: theme.text,
-                        borderColor: theme.border
-                      }]}
-                      value={player.golos}
-                      onChangeText={(value) => {
-                        if (/^\d*$/.test(value)) {
-                          setPlayerGoals(prev => 
-                            prev.map(p => p.nome === player.nome ? { ...p, golos: value } : p)
-                          );
-                        }
-                      }}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor={theme.placeholderText}
-                      maxLength={2}
-                    />
+                    <View style={styles.inputWithArrows}>
+                      <TouchableOpacity
+                        style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                        onPress={() => decrementGoals(player.nome)}
+                        disabled={loading}
+                      >
+                        <ChevronDown size={20} color={theme.text} />
+                      </TouchableOpacity>
+                      <TextInput
+                        style={[styles.goalsInput, { 
+                          backgroundColor: theme.inputBackground,
+                          color: theme.text,
+                          borderColor: theme.border
+                        }]}
+                        value={player.golos}
+                        onChangeText={(value) => {
+                          if (/^\d*$/.test(value)) {
+                            setPlayerGoals(prev => 
+                              prev.map(p => p.nome === player.nome ? { ...p, golos: value } : p)
+                            );
+                          }
+                        }}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={theme.placeholderText}
+                        maxLength={2}
+                      />
+                      <TouchableOpacity
+                        style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+                        onPress={() => incrementGoals(player.nome)}
+                        disabled={loading}
+                      >
+                        <ChevronUp size={20} color={theme.text} />
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
                       style={[styles.saveButton, { backgroundColor: theme.primary }]}
                       onPress={() => handleSaveGoals(player)}
@@ -269,16 +309,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  inputWithArrows: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  arrowButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   goalsInput: {
-    width: 60,
-    height: 44, // Aumentando a altura da caixa de texto
+    width: 50,
+    height: 44,
     borderWidth: 1,
     borderRadius: 4,
     paddingHorizontal: 8,
-    paddingVertical: 5, // Adicionando padding vertical adequado
-    fontSize: 15, // Reduzindo ligeiramente o tamanho da fonte
+    paddingVertical: 5,
+    fontSize: 16,
     textAlign: 'center',
-    textAlignVertical: 'center', // Garantindo alinhamento vertical
+    textAlignVertical: 'center',
+    fontFamily: 'Inter_600SemiBold',
   },
   saveButton: {
     paddingHorizontal: 16,

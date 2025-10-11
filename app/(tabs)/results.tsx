@@ -24,7 +24,7 @@ type GameResult = {
 export default function ResultsScreen() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
-  const { clusterName } = useAuth();
+  const { clusterName, isAdmin } = useAuth();
   const { results, fetchResults, loading } = useResults();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
@@ -244,7 +244,7 @@ export default function ResultsScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-              {isRecentGame && (
+              {isRecentGame && isAdmin && (
                 <TouchableOpacity
                   style={[
                     styles.actionButton, 
@@ -329,7 +329,7 @@ export default function ResultsScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-              {isRecentGame && (
+              {isRecentGame && isAdmin && (
                 <TouchableOpacity
                   style={[
                     styles.actionButton, 
@@ -364,7 +364,10 @@ export default function ResultsScreen() {
       <View style={styles.contentContainer}>
         <Text style={[styles.title, { color: theme.text }]}>{t('results.title')}</Text>
         
-        <View style={[styles.pickerContainer, { backgroundColor: theme.cardBackground }]}>
+        <View style={[styles.pickerContainer, { 
+          backgroundColor: isDarkMode ? '#1a3a52' : '#e3f2fd',
+          borderColor: isDarkMode ? '#2d5f8d' : '#90caf9'
+        }]}>
           <Picker
             selectedValue={selectedYear}
             onValueChange={(itemValue) => setSelectedYear(itemValue)}
@@ -447,6 +450,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 16,
     overflow: 'hidden',
+    borderWidth: 1,
   },
   picker: {
     height: 52,
