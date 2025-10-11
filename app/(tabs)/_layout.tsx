@@ -60,13 +60,17 @@ export default function TabLayout() {
             backgroundColor: theme.cardBackground,
             borderTopColor: theme.border,
             paddingBottom: 8,
+            paddingHorizontal: 2,
             height: 65,
           },
           tabBarActiveTintColor: theme.primary,
           tabBarInactiveTintColor: theme.text,
           tabBarLabelStyle: {
             fontFamily: 'Inter_600SemiBold',
-            fontSize: 12,
+            fontSize: 10,
+          },
+          tabBarItemStyle: {
+            paddingHorizontal: 2,
           },
         }}>
         <Tabs.Screen
@@ -100,14 +104,14 @@ export default function TabLayout() {
         <Tabs.Screen
           name="finances"
           options={{
-            title: t('finances.title'),
+            title: t('finances.tabTitle'),
             tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
-            title: t('settings.title'),
+            title: t('settings.tabTitle'),
             tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
           }}
         />

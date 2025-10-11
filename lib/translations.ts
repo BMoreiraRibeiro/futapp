@@ -4,6 +4,7 @@ export const translations = {
   pt: {
     settings: {
       title: 'Configurações',
+      tabTitle: 'Config',
       teamSettings: 'Configurações das Equipas',
       teamAName: 'Nome da Equipa A',
       teamBName: 'Nome da Equipa B',
@@ -93,6 +94,7 @@ export const translations = {
     },
     finances: {
       title: 'Contas Clube',
+      tabTitle: 'Contas',
       summary: 'Resumo Financeiro',
       totalRevenue: 'Receitas Totais',
       totalExpenses: 'Despesas Totais',
@@ -149,6 +151,7 @@ export const translations = {
   en: {
     settings: {
       title: 'Settings',
+      tabTitle: 'Settings',
       teamSettings: 'Team Settings',
       teamAName: 'Team A Name',
       teamBName: 'Team B Name',
@@ -238,6 +241,7 @@ export const translations = {
     },
     finances: {
       title: 'Club Accounts',
+      tabTitle: 'Accounts',
       summary: 'Financial Summary',
       totalRevenue: 'Total Revenue',
       totalExpenses: 'Total Expenses',
