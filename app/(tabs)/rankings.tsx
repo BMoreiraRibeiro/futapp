@@ -203,14 +203,31 @@ export default function RankingsScreen() {
     return (a[sortConfig.field] - b[sortConfig.field]) * multiplier;
   });
 
-  const SortButton = ({ field, label }: { field: SortField; label: string }) => (
-    <TouchableOpacity 
-      onPress={() => handleSort(field)}
-      style={styles.statItem}
-    >
-      <Text style={[styles.headerText, { color: theme.primary }]}>{label}</Text>
-    </TouchableOpacity>
-  );
+  const SortButton = ({ field, label }: { field: SortField; label: string }) => {
+    const isActive = sortConfig.field === field;
+    const isDesc = sortConfig.order === 'desc';
+    
+    return (
+      <TouchableOpacity 
+        onPress={() => handleSort(field)}
+        style={styles.statItem}
+      >
+        <View style={styles.sortButtonContent}>
+          <Text style={[
+            styles.headerText, 
+            { color: isActive ? theme.primary : theme.text }
+          ]}>
+            {label}
+          </Text>
+          {isActive && (
+            <Text style={[styles.sortArrow, { color: theme.primary }]}>
+              {isDesc ? '↓' : '↑'}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const getPositionStyle = (position: number) => {
     switch (position) {
@@ -340,21 +357,11 @@ export default function RankingsScreen() {
                 <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.player')}</Text>
               </View>
               <View style={styles.statsContainer}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.games')}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.wins')}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.draws')}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.losses')}</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={[styles.headerText, { color: theme.text }]}>{t('rankings.goalsScored')}</Text>
-                </View>
+                <SortButton field="jogos" label={t('rankings.games')} />
+                <SortButton field="vitorias" label={t('rankings.wins')} />
+                <SortButton field="empates" label={t('rankings.draws')} />
+                <SortButton field="derrotas" label={t('rankings.losses')} />
+                <SortButton field="golos" label={t('rankings.goalsScored')} />
               </View>
             </View>
           </View>
@@ -500,6 +507,17 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     marginLeft: 4,
+  },
+  sortButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  sortArrow: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    marginLeft: 2,
   },
   scrollView: {
     flex: 1,
