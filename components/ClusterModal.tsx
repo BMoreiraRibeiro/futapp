@@ -55,7 +55,8 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         // Insere o novo cluster
         const newCluster = {
           cluster_id: trimmedClusterId,
-          user_id: userId
+          user_id: userId,
+          admin: true  // Criador do cluster é admin
         };
         
         console.warn('➕ Cluster: Criando novo clube...', newCluster);
@@ -89,7 +90,8 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           .from('clusters')
           .upsert({
             cluster_id: trimmedClusterId,
-            user_id: userId
+            user_id: userId,
+            admin: false  // Quem se junta não é admin
           });
 
         if (updateError) {

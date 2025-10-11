@@ -1,6 +1,6 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2, DollarSign } from 'lucide-react-native';
-import { View, Text, StyleSheet, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
@@ -11,6 +11,7 @@ function Header() {
   const { clusterName } = useAuth();
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
+  const router = useRouter();
 
   console.warn('🎯 Header: Renderizando com clusterName:', clusterName);
 
@@ -35,6 +36,12 @@ function Header() {
             </Text>
           </View>
         </View>
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => router.push('/(tabs)/settings')}
+        >
+          <Settings size={24} color="white" />
+        </TouchableOpacity>
       </View>
     </LinearGradient>
   );
@@ -44,6 +51,9 @@ export default function TabLayout() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const { t } = useLanguage();
+  const { isAdmin } = useAuth();
+
+  console.log('🔑 TabLayout - isAdmin:', isAdmin);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -106,6 +116,7 @@ export default function TabLayout() {
           options={{
             title: t('finances.tabTitle'),
             tabBarIcon: ({ color }) => <DollarSign size={24} color={color} />,
+            href: isAdmin ? '/finances' : null,
           }}
         />
         <Tabs.Screen
@@ -113,6 +124,7 @@ export default function TabLayout() {
           options={{
             title: t('settings.tabTitle'),
             tabBarIcon: ({ color }) => <Settings size={24} color={color} />,
+            href: null,
           }}
         />
       </Tabs>
@@ -136,7 +148,7 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     paddingHorizontal: 16,
   },
   titleContainer: {
@@ -175,5 +187,10 @@ const styles = StyleSheet.create({
     height: 32,
     transform: [{ rotate: '-15deg' }],
     tintColor: '#ffffff',
+  },
+  settingsButton: {
+    padding: 8,
+    marginLeft: 8,
+    marginBottom: -4,
   },
 });

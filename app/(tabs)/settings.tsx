@@ -19,9 +19,12 @@ const TEAM_COLORS = [
 ];
 
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
+  
+  console.log('⚙️ Settings - isAdmin:', isAdmin);
+  
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [ratingVariation, setRatingVariation] = useState('2');
   const [teamAName, setTeamAName] = useState('Equipa A');
@@ -210,31 +213,33 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={[styles.section, { backgroundColor: theme.secondary }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.drawSettings')}</Text>
-          <View style={styles.ratingRow}>
-            <Text style={[styles.ratingText, { color: theme.text }]}>
-              {t('settings.maxRatingVariation')}
-            </Text>
-            <TextInput
-              style={[styles.ratingInput, { 
-                backgroundColor: theme.inputBackground,
-                color: theme.text,
-                borderColor: theme.border
-              }]}
-              value={tempRatingVariation}
-              onChangeText={(value) => {
-                if (/^\d*\.?\d*$/.test(value)) {
-                  setTempRatingVariation(value);
-                }
-              }}
-              keyboardType="decimal-pad"
-              maxLength={4}
-            />
-          </View>
-        </View>
+        {isAdmin && (
+          <>
+            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.drawSettings')}</Text>
+              <View style={styles.ratingRow}>
+                <Text style={[styles.ratingText, { color: theme.text }]}>
+                  {t('settings.maxRatingVariation')}
+                </Text>
+                <TextInput
+                  style={[styles.ratingInput, { 
+                    backgroundColor: theme.inputBackground,
+                    color: theme.text,
+                    borderColor: theme.border
+                  }]}
+                  value={tempRatingVariation}
+                  onChangeText={(value) => {
+                    if (/^\d*\.?\d*$/.test(value)) {
+                      setTempRatingVariation(value);
+                    }
+                  }}
+                  keyboardType="decimal-pad"
+                  maxLength={4}
+                />
+              </View>
+            </View>
 
-        <View style={[styles.section, { backgroundColor: theme.secondary }]}>
+            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.teamCustomization')}</Text>
           
           {/* Equipa A */}
@@ -307,6 +312,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+      </>)}
 
         <View style={styles.saveButtonContainer}>
           <TouchableOpacity

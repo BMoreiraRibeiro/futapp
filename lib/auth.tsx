@@ -10,6 +10,7 @@ type AuthContextType = {
   isAuthenticated: boolean;
   hasCluster: boolean;
   clusterName: string | null;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
   updateClusterState: () => Promise<void>;
   isSessionValid: () => boolean;
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   hasCluster: false,
   clusterName: null,
+  isAdmin: false,
   signOut: async () => {},
   updateClusterState: async () => {},
   isSessionValid: () => false,
@@ -34,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasCluster, setHasCluster] = useState(false);
   const [clusterName, setClusterName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       setHasCluster(false);
       setClusterName(null);
+      setIsAdmin(false);
 
       const keys = await AsyncStorage.getAllKeys();
       const clearKeys = keys.filter(key => 
@@ -94,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user.id) {
         const { data: cluster, error: clusterError } = await supabase
           .from('clusters')
-          .select('cluster_id')
+          .select('cluster_id, admin')
           .eq('user_id', session.user.id)
           .single();
 
@@ -104,20 +108,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (cluster) {
+          console.log('🔍 fetchClusterInfo - Cluster encontrado:', cluster);
           setHasCluster(true);
           setClusterName(cluster.cluster_id);
+          setIsAdmin(cluster.admin || false);
+          console.log('🔍 fetchClusterInfo - isAdmin definido como:', cluster.admin || false);
         } else {
+          console.log('🔍 fetchClusterInfo - Nenhum cluster encontrado');
           setHasCluster(false);
           setClusterName(null);
+          setIsAdmin(false);
         }
       } else {
         setHasCluster(false);
         setClusterName(null);
+        setIsAdmin(false);
       }
     } catch (error) {
       console.error('Erro ao buscar informações do clube:', error);
       setHasCluster(false);
       setClusterName(null);
+      setIsAdmin(false);
     }
   };
 
@@ -143,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Busca informações do clube logo após o login
         const { data: cluster, error: clusterError } = await supabase
           .from('clusters')
-          .select('cluster_id')
+          .select('cluster_id, admin')
           .eq('user_id', data.session.user.id)
           .single();
 
@@ -152,9 +163,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (cluster) {
           setHasCluster(true);
           setClusterName(cluster.cluster_id);
+          setIsAdmin(cluster.admin || false);
         } else {
           setHasCluster(false);
           setClusterName(null);
+          setIsAdmin(false);
         }
 
         router.replace('/(tabs)');
@@ -224,6 +237,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated, 
       hasCluster,
       clusterName,
+      isAdmin,
       signOut,
       updateClusterState,
       isSessionValid,
