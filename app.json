@@ -39,10 +39,7 @@
       [
         "expo-navigation-bar",
         {
-          "position": "absolute",
-          "visibility": "hidden",
-          "behavior": "overlay-swipe",
-          "backgroundColor": "#000000"
+          "visibility": "hidden"
         }
       ]
     ],

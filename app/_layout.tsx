@@ -13,6 +13,7 @@ import { LanguageProvider } from '../lib/language';
 import * as SplashScreen from 'expo-splash-screen';
 import NetInfo from '@react-native-community/netinfo';
 import Constants from 'expo-constants';
+import * as NavigationBar from 'expo-navigation-bar';
 
 // Impede o escondimento automático do SplashScreen
 SplashScreen.preventAutoHideAsync().catch((error) => console.warn(error));
@@ -104,6 +105,20 @@ function RootLayoutNav() {
   const [shouldRedirectToAuth, setShouldRedirectToAuth] = useState(false);
   const [hasInternet, setHasInternet] = useState(true);
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
+  
+  // Esconde a barra de navegação do Android
+  useEffect(() => {
+    const hideNavigationBar = async () => {
+      try {
+        // Com edge-to-edge ativado, só precisamos definir a visibilidade
+        await NavigationBar.setVisibilityAsync('hidden');
+      } catch (error) {
+        console.log('Erro ao configurar barra de navegação:', error);
+      }
+    };
+    
+    hideNavigationBar();
+  }, []);
   
   // Verifica conectividade à internet
   useEffect(() => {
