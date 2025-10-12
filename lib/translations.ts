@@ -126,6 +126,7 @@ export const translations = {
       emailAlreadyRegistered: 'Este email já está cadastrado. Por favor, use outro email ou faça login.',
       invalidCredentials: 'Email ou senha incorretos',
       emailNotVerified: 'Você precisa verificar seu email antes de fazer login',
+      emailNotConfirmed: 'Email não confirmado. Por favor, verifique sua caixa de entrada e confirme seu email.',
     },
     common: {
       save: 'Guardar',
@@ -273,6 +274,7 @@ export const translations = {
       emailAlreadyRegistered: 'This email is already registered. Please use another email or login.',
       invalidCredentials: 'Invalid email or password',
       emailNotVerified: 'You need to verify your email before logging in',
+      emailNotConfirmed: 'Email not confirmed. Please check your inbox and confirm your email.',
     },
     common: {
       save: 'Save',

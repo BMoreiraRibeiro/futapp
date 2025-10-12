@@ -151,8 +151,11 @@ function RootLayoutNav() {
   useEffect(() => {
     const validateAuth = async () => {
       try {
+        console.log('🔍 validateAuth - Iniciando validação. isInitializing:', isInitializing, 'isAuthenticated:', isAuthenticated, 'hasCluster:', hasCluster);
+        
         // Aguarda o AuthProvider terminar de inicializar
         if (isInitializing) {
+          console.log('⏳ validateAuth - Ainda inicializando, aguardando...');
           return;
         }
 
@@ -160,47 +163,62 @@ function RootLayoutNav() {
 
         // 1. Verificar se tem internet
         if (!hasInternet) {
+          console.log('📡 validateAuth - Sem internet');
           setIsValidating(false);
           return;
         }
 
         // 2. Verificar se tem sessão válida
         if (!session || !isSessionValid()) {
+          console.log('🚫 validateAuth - Sessão inválida ou inexistente');
           setShouldRedirectToAuth(true);
+          setShowClusterModal(false); // Esconde o modal ao redirecionar para auth
           setIsValidating(false);
           return;
         }
 
         // 3. Se autenticado, verificar cluster
         if (isAuthenticated && session?.user.id) {
-          // Verifica se o usuário já tem um cluster
-          const { data: cluster, error } = await supabase
-            .from('clusters')
+          console.log('✅ validateAuth - Usuário autenticado, verificando cluster...');
+          
+          // Verifica se o usuário já é membro de algum cluster
+          const { data: member, error } = await supabase
+            .from('cluster_members')
             .select('cluster_id')
             .eq('user_id', session.user.id)
-            .single();
+            .maybeSingle(); // Usa maybeSingle() em vez de single() para evitar erro quando não há resultados
 
-          if (error) {
-            console.error('Erro ao verificar cluster:', error);
+          // Se houver erro E não for "nenhum resultado encontrado"
+          if (error && error.code !== 'PGRST116') {
+            console.error('❌ validateAuth - Erro ao verificar cluster:', error);
             setShouldRedirectToAuth(true);
+            setShowClusterModal(false);
             setIsValidating(false);
             return;
           }
 
-          const hasExistingCluster = !!cluster;
+          const hasExistingCluster = !!member;
+          console.log('🔍 validateAuth - Cluster encontrado?', hasExistingCluster, 'Data:', member);
 
           if (hasExistingCluster) {
+            console.log('✅ validateAuth - Utilizador com cluster, escondendo modal');
+            setShowClusterModal(false); // Garante que o modal está escondido
             await updateClusterState();
           } else {
-            setShowClusterModal(true);
+            console.log('📋 validateAuth - Utilizador sem cluster, mostrando ClusterModal');
+            setShowClusterModal(true); // Mostra o modal sempre que não há cluster
           }
         } else {
+          console.log('🚫 validateAuth - Não autenticado');
           setShouldRedirectToAuth(true);
+          setShowClusterModal(false);
         }
       } catch (error) {
-        console.error('Erro na validação:', error);
+        console.error('❌ validateAuth - Erro na validação:', error);
         setShouldRedirectToAuth(true);
+        setShowClusterModal(false);
       } finally {
+        console.log('🏁 validateAuth - Validação concluída');
         setIsValidating(false);
       }
     };
@@ -208,8 +226,11 @@ function RootLayoutNav() {
     validateAuth();
   }, [isAuthenticated, session, hasInternet, isInitializing]);
 
-  const handleClusterCreated = () => {
+  const handleClusterCreated = async () => {
+    console.log('🎉 Cluster criado/associado, atualizando estado');
     setShowClusterModal(false);
+    // Atualiza o estado do cluster após criação/associação
+    await updateClusterState();
   };
 
   const handleRetryConnection = async () => {
@@ -258,7 +279,8 @@ function RootLayoutNav() {
         </Stack>
         <StatusBar style="light" />
         
-        {session && !hasCluster && !shouldRedirectToAuth && (
+        {/* Mostra o ClusterModal se estiver marcado para mostrar E tiver sessão */}
+        {session && showClusterModal && !shouldRedirectToAuth && (
           <ClusterModal
             visible={showClusterModal}
             userId={session.user.id}

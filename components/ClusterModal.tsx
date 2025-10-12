@@ -34,7 +34,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       const trimmedClusterId = clusterId.trim();
 
       // Verifica se o cluster_id já existe
-      console.warn('🔍 Cluster: Verificando se o nome existe...');
+      console.log('🔍 Cluster: Verificando se o nome existe...', { clusterId: trimmedClusterId, mode });
       const { data: existingClusters, error: checkError } = await supabase
         .from('clusters')
         .select('cluster_id')
@@ -45,6 +45,8 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         throw checkError;
       }
 
+      console.log('🔍 Cluster: Resultado da verificação:', { existingClusters, count: existingClusters?.length || 0 });
+
       if (mode === 'create') {
         if (existingClusters && existingClusters.length > 0) {
           console.warn('⚠️ Cluster: Nome já existe');
@@ -53,29 +55,102 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         }
 
         // Insere o novo cluster
-        const newCluster = {
-          cluster_id: trimmedClusterId,
-          user_id: userId,
-          admin: true  // Criador do cluster é admin
-        };
+        const { data: { user } } = await supabase.auth.getUser();
+        const playerName = user?.user_metadata?.player_name || 'Jogador';
         
-        console.warn('➕ Cluster: Criando novo clube...', newCluster);
+        console.warn('➕ Cluster: Criando novo clube...');
         
-        const { data, error: insertError } = await supabase
+        // 1. Criar o cluster na tabela clusters
+        const { error: clusterError } = await supabase
           .from('clusters')
-          .insert([newCluster])
+          .insert([{
+            cluster_id: trimmedClusterId,
+            nome_cluster: trimmedClusterId,
+            created_by: userId
+          }]);
+
+        if (clusterError) {
+          console.error('❌ Cluster: Erro ao criar cluster:', clusterError);
+          throw clusterError;
+        }
+
+        // 2. Adicionar o criador como membro admin em cluster_members
+        const { data, error: memberError } = await supabase
+          .from('cluster_members')
+          .insert([{
+            cluster_id: trimmedClusterId,
+            user_id: userId,
+            nome: playerName,
+            admin: true
+          }])
           .select();
 
-        if (insertError) {
-          console.error('❌ Cluster: Erro ao criar:', insertError);
-          throw insertError;
+        if (memberError) {
+          console.error('❌ Cluster: Erro ao adicionar membro:', memberError);
+          // Reverter criação do cluster
+          await supabase.from('clusters').delete().eq('cluster_id', trimmedClusterId);
+          throw memberError;
         }
 
         if (!data || data.length === 0) {
           throw new Error('Nenhum dado retornado após a criação');
         }
 
-        console.warn('✅ Cluster: Clube criado com sucesso:', data[0]);
+        console.warn('✅ Cluster: Clube e membro criados com sucesso:', data[0]);
+        
+        // Verificar se já existe um jogador com este nome no cluster
+        const { data: existingPlayerInCluster, error: playerCheckError } = await supabase
+          .from('jogadores')
+          .select('nome')
+          .eq('nome', playerName)
+          .eq('cluster_id', trimmedClusterId)
+          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
+
+        // Ignora erro PGRST116 (nenhum resultado encontrado)
+        if (playerCheckError && playerCheckError.code !== 'PGRST116') {
+          console.error('❌ Erro ao verificar jogador existente:', playerCheckError);
+          throw playerCheckError;
+        }
+
+        if (existingPlayerInCluster) {
+          console.warn('⚠️ Cluster: Nome de jogador já existe neste clube');
+          // Deletar o membro e o cluster recém-criados
+          await supabase.from('cluster_members').delete().eq('cluster_id', trimmedClusterId).eq('user_id', userId);
+          await supabase.from('clusters').delete().eq('cluster_id', trimmedClusterId);
+          setError('Já existe um jogador com este nome neste clube. Por favor, escolha outro nome de jogador.');
+          return;
+        }
+        
+        // Criar o jogador
+        console.warn('➕ Cluster: Criando jogador...');
+        const { error: playerError } = await supabase
+          .from('jogadores')
+          .insert({
+            nome: playerName,
+            cluster_id: trimmedClusterId,
+            rating: 1000,
+            numero_jogos: 0,
+            numero_vitorias: 0,
+            empates: 0,
+            derrotas: 0,
+            golos_marcados: 0
+          });
+
+        if (playerError) {
+          console.error('❌ Cluster: Erro ao criar jogador:', playerError);
+          // Se falhar ao criar jogador, deletar o membro e o cluster
+          await supabase.from('cluster_members').delete().eq('cluster_id', trimmedClusterId).eq('user_id', userId);
+          await supabase.from('clusters').delete().eq('cluster_id', trimmedClusterId);
+          
+          if (playerError.code === '23505') { // Código de erro para violação de unique constraint
+            setError('Já existe um jogador com este nome neste clube. Por favor, escolha outro nome de jogador.');
+          } else {
+            throw playerError;
+          }
+          return;
+        } else {
+          console.warn('✅ Cluster: Jogador criado com sucesso');
+        }
       } else {
         // Modo juntar-se: verifica se o clube existe e atualiza o usuário
         if (!existingClusters || existingClusters.length === 0) {
@@ -85,21 +160,80 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         }
 
         // Atualiza o usuário para o novo clube
-        console.warn('🔄 Cluster: Atualizando usuário para o novo clube...');
-        const { error: updateError } = await supabase
-          .from('clusters')
-          .upsert({
+        console.warn('🔄 Cluster: Adicionando usuário ao clube...');
+        
+        // Buscar o nome do jogador do metadata do usuário
+        const { data: { user } } = await supabase.auth.getUser();
+        const playerName = user?.user_metadata?.player_name || 'Jogador';
+        
+        const { error: memberError } = await supabase
+          .from('cluster_members')
+          .insert({
             cluster_id: trimmedClusterId,
             user_id: userId,
-            admin: false  // Quem se junta não é admin
+            nome: playerName,
+            admin: false
           });
 
-        if (updateError) {
-          console.error('❌ Cluster: Erro ao atualizar usuário:', updateError);
-          throw updateError;
+        if (memberError) {
+          console.error('❌ Cluster: Erro ao adicionar usuário ao cluster:', memberError);
+          throw memberError;
         }
 
-        console.warn('✅ Cluster: Usuário atualizado com sucesso para o clube:', trimmedClusterId);
+        console.warn('✅ Cluster: Usuário adicionado com sucesso ao clube:', trimmedClusterId);
+        
+        // Verificar se já existe um jogador com este nome no cluster
+        const { data: existingPlayerInCluster, error: playerCheckError } = await supabase
+          .from('jogadores')
+          .select('nome')
+          .eq('nome', playerName)
+          .eq('cluster_id', trimmedClusterId)
+          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
+
+        // Ignora erro PGRST116 (nenhum resultado encontrado)
+        if (playerCheckError && playerCheckError.code !== 'PGRST116') {
+          console.error('❌ Erro ao verificar jogador existente:', playerCheckError);
+          throw playerCheckError;
+        }
+
+        if (existingPlayerInCluster) {
+          console.warn('⚠️ Cluster: Nome de jogador já existe neste clube');
+          // Reverter a adição ao cluster
+          await supabase.from('cluster_members').delete().eq('cluster_id', trimmedClusterId).eq('user_id', userId);
+          setError('Já existe um jogador com este nome neste clube. Por favor, use outro nome de jogador.');
+          return;
+        }
+        
+        // Criar jogador
+        console.warn('➕ Cluster: Criando jogador para usuário que se juntou...');
+        
+        const { error: playerError } = await supabase
+          .from('jogadores')
+          .insert({
+            nome: playerName,
+            cluster_id: trimmedClusterId,
+            rating: 1000,
+            numero_jogos: 0,
+            numero_vitorias: 0,
+            empates: 0,
+            derrotas: 0,
+            golos_marcados: 0
+          });
+
+        if (playerError) {
+          console.error('❌ Cluster: Erro ao criar jogador:', playerError);
+          
+          if (playerError.code === '23505') { // Código de erro para violação de unique constraint
+            // Reverter a adição ao cluster
+            await supabase.from('cluster_members').delete().eq('cluster_id', trimmedClusterId).eq('user_id', userId);
+            setError('Já existe um jogador com este nome neste clube. Por favor, use outro nome de jogador.');
+            return;
+          } else {
+            throw playerError;
+          }
+        } else {
+          console.warn('✅ Cluster: Jogador criado com sucesso');
+        }
       }
       
       // Atualiza o estado do cluster no contexto de autenticação

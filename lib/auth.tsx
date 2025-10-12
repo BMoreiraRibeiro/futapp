@@ -45,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearSessionData = async () => {
     try {
+      console.log('🧹 clearSessionData - Limpando todos os dados da sessão');
       setSession(null);
       setIsAuthenticated(false);
       setHasCluster(false);
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       await new Promise(resolve => setTimeout(resolve, 100));
+      console.log('✅ clearSessionData - Dados limpos com sucesso');
     } catch (error) {
       console.error('Erro ao limpar dados da sessão:', error);
       throw error;
@@ -96,23 +98,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Verifica diretamente no banco de dados
       if (session?.user.id) {
-        const { data: cluster, error: clusterError } = await supabase
-          .from('clusters')
-          .select('cluster_id, admin')
+        const { data: member, error: memberError } = await supabase
+          .from('cluster_members')
+          .select('cluster_id, nome, admin')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
-        if (clusterError) {
-          console.error('Erro ao verificar clube:', clusterError.message);
-          throw clusterError;
+        // Se houver erro E não for "nenhum resultado encontrado"
+        if (memberError && memberError.code !== 'PGRST116') {
+          console.error('Erro ao verificar clube:', memberError.message);
+          throw memberError;
         }
 
-        if (cluster) {
-          console.log('🔍 fetchClusterInfo - Cluster encontrado:', cluster);
+        if (member) {
+          console.log('🔍 fetchClusterInfo - Cluster encontrado:', member);
           setHasCluster(true);
-          setClusterName(cluster.cluster_id);
-          setIsAdmin(cluster.admin || false);
-          console.log('🔍 fetchClusterInfo - isAdmin definido como:', cluster.admin || false);
+          setClusterName(member.cluster_id);
+          setIsAdmin(member.admin || false);
+          console.log('🔍 fetchClusterInfo - isAdmin definido como:', member.admin || false);
         } else {
           console.log('🔍 fetchClusterInfo - Nenhum cluster encontrado');
           setHasCluster(false);
@@ -152,19 +155,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsAuthenticated(true);
         
         // Busca informações do clube logo após o login
-        const { data: cluster, error: clusterError } = await supabase
-          .from('clusters')
-          .select('cluster_id, admin')
+        const { data: member, error: memberError } = await supabase
+          .from('cluster_members')
+          .select('cluster_id, nome, admin')
           .eq('user_id', data.session.user.id)
-          .single();
+          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
-        if (clusterError) {
-          console.error('Erro ao buscar clube:', clusterError.message);
-        } else if (cluster) {
+        // Se houver erro E não for "nenhum resultado encontrado"
+        if (memberError && memberError.code !== 'PGRST116') {
+          console.error('Erro ao buscar clube:', memberError.message);
+        } else if (member) {
           setHasCluster(true);
-          setClusterName(cluster.cluster_id);
-          setIsAdmin(cluster.admin || false);
+          setClusterName(member.cluster_id);
+          setIsAdmin(member.admin || false);
         } else {
+          console.log('📋 Utilizador sem cluster após login');
           setHasCluster(false);
           setClusterName(null);
           setIsAdmin(false);
@@ -201,12 +206,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initApp();
 
     // Configura o listener de mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 onAuthStateChange - Evento:', event, 'Session:', session?.user?.id || 'nenhuma');
+      
       if (session?.user?.id) {
         setSession(session);
         setIsAuthenticated(true);
+        console.log('🔍 onAuthStateChange - Buscando informações do cluster...');
         await fetchClusterInfo();
       } else {
+        console.log('🧹 onAuthStateChange - Sem sessão, limpando dados');
         await clearSessionData();
       }
     });

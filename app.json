@@ -37,9 +37,12 @@
     "plugins": [
       "expo-router",
       [
-        "expo-navigation-bar",
+        "expo-navigation-bar", 
         {
-          "visibility": "hidden"
+          "position": "absolute",
+          "visibility": "hidden",
+          "behavior": "overlay-swipe",
+          "backgroundColor": "#000000"
         }
       ]
     ],

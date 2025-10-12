@@ -3,10 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { Moon, Sun, Save } from 'lucide-react-native';
+import { Moon, Sun, Save, Shield } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
+import { AdminModal } from '../../components/AdminModal';
 
 // Cores predefinidas para as equipes
 const TEAM_COLORS = [
@@ -19,7 +20,7 @@ const TEAM_COLORS = [
 ];
 
 export default function SettingsScreen() {
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, clusterName } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
   const [teamBName, setTeamBName] = useState('Equipa B');
   const [teamAColor, setTeamAColor] = useState('#3498db');
   const [teamBColor, setTeamBColor] = useState('#e74c3c');
+  const [showAdminModal, setShowAdminModal] = useState(false);
   
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
@@ -312,6 +314,17 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+
+            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Administração</Text>
+              <TouchableOpacity
+                style={[styles.adminButton, { backgroundColor: theme.primary }]}
+                onPress={() => setShowAdminModal(true)}
+              >
+                <Shield size={20} color="#fff" />
+                <Text style={styles.adminButtonText}>Definir Novo Admin</Text>
+              </TouchableOpacity>
+            </View>
       </>)}
 
         <View style={styles.saveButtonContainer}>
@@ -346,6 +359,17 @@ export default function SettingsScreen() {
           />
         )}
       </ScrollView>
+
+      {clusterName && (
+        <AdminModal
+          visible={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
+          currentClusterId={clusterName}
+          onAdminChanged={() => {
+            showToast('Novo admin definido com sucesso!', 'success');
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -506,5 +530,18 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: 'Inter_600SemiBold',
     marginBottom: 20,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+  },
+  adminButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
   },
 });
