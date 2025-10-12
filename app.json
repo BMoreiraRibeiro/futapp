@@ -3,7 +3,7 @@
     "name": "Your FUTAPP",
     "slug": "fut",
     "version": "1.0.0",
-    "newArchEnabled": false,
+    "scheme": "futapp",
     "sdkVersion": "54.0.0",
     "web": {
       "bundler": "metro",

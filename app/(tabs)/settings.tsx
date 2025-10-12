@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
 import { AdminModal } from '../../components/AdminModal';
+import { useClusterSettings } from '../../hooks/useClusterSettings';
 
 // Cores predefinidas para as equipes
 const TEAM_COLORS = [
@@ -23,15 +24,12 @@ export default function SettingsScreen() {
   const { signOut, isAdmin, clusterName } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
+  const { settings: clusterSettings, updateSettings, loading: settingsLoading } = useClusterSettings(clusterName);
   
   console.log('⚙️ Settings - isAdmin:', isAdmin);
+  console.log('⚙️ Settings - loading:', settingsLoading);
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [ratingVariation, setRatingVariation] = useState('2');
-  const [teamAName, setTeamAName] = useState('Equipa A');
-  const [teamBName, setTeamBName] = useState('Equipa B');
-  const [teamAColor, setTeamAColor] = useState('#3498db');
-  const [teamBColor, setTeamBColor] = useState('#e74c3c');
   const [showAdminModal, setShowAdminModal] = useState(false);
   
   // Estados temporários para edição
@@ -53,85 +51,40 @@ export default function SettingsScreen() {
 
   const { t, language, setLanguage } = useLanguage();
 
+  // Carregar configurações do cluster quando disponíveis (apenas na primeira vez)
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
   useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      await loadRatingVariation();
-      await loadTeamNames();
-      await loadTeamColors();
-    } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
+    if (!settingsLoading && !settingsLoaded) {
+      setTempRatingVariation(clusterSettings.rating_variation.toString());
+      setTempTeamAName(clusterSettings.team_a_name);
+      setTempTeamBName(clusterSettings.team_b_name);
+      setTempTeamAColor(clusterSettings.team_a_color);
+      setTempTeamBColor(clusterSettings.team_b_color);
+      setSettingsLoaded(true);
+      console.log('⚙️ Configurações carregadas:', clusterSettings);
     }
-  };
-
-  const loadRatingVariation = async () => {
-    try {
-      const value = await AsyncStorage.getItem('@rating_variation');
-      if (value) {
-        setRatingVariation(value);
-        setTempRatingVariation(value);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar variação de rating:', error);
-    }
-  };
-
-  const loadTeamNames = async () => {
-    try {
-      const nameA = await AsyncStorage.getItem('@team_a_name');
-      const nameB = await AsyncStorage.getItem('@team_b_name');
-      
-      if (nameA) {
-        setTeamAName(nameA);
-        setTempTeamAName(nameA);
-      }
-      if (nameB) {
-        setTeamBName(nameB);
-        setTempTeamBName(nameB);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar nomes das equipes:', error);
-    }
-  };
-
-  const loadTeamColors = async () => {
-    try {
-      const colorA = await AsyncStorage.getItem('@team_a_color');
-      const colorB = await AsyncStorage.getItem('@team_b_color');
-      
-      if (colorA) {
-        setTeamAColor(colorA);
-        setTempTeamAColor(colorA);
-      }
-      if (colorB) {
-        setTeamBColor(colorB);
-        setTempTeamBColor(colorB);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar cores das equipes:', error);
-    }
-  };
+  }, [settingsLoading, settingsLoaded, clusterSettings]);
 
   const saveAllSettings = async () => {
+    if (!isAdmin) {
+      showToast('Apenas administradores podem alterar as configurações', 'error');
+      return;
+    }
+
+    if (!clusterSettings) {
+      showToast('Configurações não carregadas', 'error');
+      return;
+    }
+
     try {
-      // Salvar variação de rating
-      await AsyncStorage.setItem('@rating_variation', tempRatingVariation);
-      setRatingVariation(tempRatingVariation);
-      
-      // Salvar nomes das equipes
-      await AsyncStorage.setItem('@team_a_name', tempTeamAName);
-      await AsyncStorage.setItem('@team_b_name', tempTeamBName);
-      setTeamAName(tempTeamAName);
-      setTeamBName(tempTeamBName);
-      
-      // Salvar cores das equipes
-      await AsyncStorage.setItem('@team_a_color', tempTeamAColor);
-      await AsyncStorage.setItem('@team_b_color', tempTeamBColor);
-      setTeamAColor(tempTeamAColor);
-      setTeamBColor(tempTeamBColor);
+      await updateSettings({
+        rating_variation: parseFloat(tempRatingVariation),
+        team_a_name: tempTeamAName,
+        team_b_name: tempTeamBName,
+        team_a_color: tempTeamAColor,
+        team_b_color: tempTeamBColor,
+      });
       
       showToast('Configurações salvas com sucesso!', 'success');
     } catch (error) {
