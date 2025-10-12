@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated, Modal } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { Moon, Sun, Save, Shield } from 'lucide-react-native';
+import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
@@ -31,6 +31,12 @@ export default function SettingsScreen() {
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  
+  // Controle de modais
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showDrawModal, setShowDrawModal] = useState(false);
+  const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
   
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
@@ -128,166 +134,57 @@ export default function SettingsScreen() {
       <ScrollView style={styles.contentContainer}>
         <Text style={[styles.title, { color: theme.text }]}>{t('settings.title')}</Text>
 
-        <View style={[styles.section, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.language')}</Text>
-          <View style={styles.languageButtons}>
-            <TouchableOpacity
-              style={[
-                styles.languageButton,
-                { 
-                  backgroundColor: language === 'pt' ? theme.primary : theme.cardBackground,
-                  borderColor: theme.border
-                }
-              ]}
-              onPress={() => setLanguage('pt')}
-            >
-              <Text style={[
-                styles.languageButtonText,
-                { color: language === 'pt' ? '#ffffff' : theme.text }
-              ]}>
-                Português
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.languageButton,
-                { 
-                  backgroundColor: language === 'en' ? theme.primary : theme.cardBackground,
-                  borderColor: theme.border
-                }
-              ]}
-              onPress={() => setLanguage('en')}
-            >
-              <Text style={[
-                styles.languageButtonText,
-                { color: language === 'en' ? '#ffffff' : theme.text }
-              ]}>
-                English
-              </Text>
-            </TouchableOpacity>
+        {/* Botão: Perfil */}
+        <TouchableOpacity
+          style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+          onPress={() => setShowProfileModal(true)}
+        >
+          <View style={styles.menuButtonContent}>
+            <User size={24} color={theme.primary} />
+            <Text style={[styles.menuButtonText, { color: theme.text }]}>Perfil</Text>
           </View>
-        </View>
+          <ChevronRight size={24} color={theme.text} />
+        </TouchableOpacity>
+
+        {/* Botão: Idioma */}
+        <TouchableOpacity
+          style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+          onPress={() => setShowLanguageModal(true)}
+        >
+          <View style={styles.menuButtonContent}>
+            <Globe size={24} color={theme.primary} />
+            <Text style={[styles.menuButtonText, { color: theme.text }]}>{t('settings.language')}</Text>
+          </View>
+          <ChevronRight size={24} color={theme.text} />
+        </TouchableOpacity>
 
         {isAdmin && (
           <>
-            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.drawSettings')}</Text>
-              <View style={styles.ratingRow}>
-                <Text style={[styles.ratingText, { color: theme.text }]}>
-                  {t('settings.maxRatingVariation')}
-                </Text>
-                <TextInput
-                  style={[styles.ratingInput, { 
-                    backgroundColor: theme.inputBackground,
-                    color: theme.text,
-                    borderColor: theme.border
-                  }]}
-                  value={tempRatingVariation}
-                  onChangeText={(value) => {
-                    if (/^\d*\.?\d*$/.test(value)) {
-                      setTempRatingVariation(value);
-                    }
-                  }}
-                  keyboardType="decimal-pad"
-                  maxLength={4}
-                />
+            {/* Botão: Personalizar Sorteio */}
+            <TouchableOpacity
+              style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+              onPress={() => setShowDrawModal(true)}
+            >
+              <View style={styles.menuButtonContent}>
+                <SettingsIcon size={24} color={theme.primary} />
+                <Text style={[styles.menuButtonText, { color: theme.text }]}>Personalizar Sorteio</Text>
               </View>
-            </View>
+              <ChevronRight size={24} color={theme.text} />
+            </TouchableOpacity>
 
-            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('settings.teamCustomization')}</Text>
-          
-          {/* Equipa A */}
-          <View style={styles.teamSection}>
-            <Text style={[styles.teamTitle, { color: theme.text }]}>{t('settings.teamA')}</Text>
-            <View style={styles.teamNameRow}>
-              <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.name')}:</Text>
-              <TextInput
-                style={[styles.teamInput, { 
-                  backgroundColor: theme.inputBackground,
-                  color: theme.text,
-                  borderColor: theme.border
-                }]}
-                value={tempTeamAName}
-                onChangeText={setTempTeamAName}
-                placeholder={t('settings.teamAPlaceholder')}
-                placeholderTextColor={theme.placeholderText}
-              />
-            </View>
-            <View style={styles.teamColorRow}>
-              <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.color')}:</Text>
-              <View style={styles.colorButtonsContainer}>
-                {TEAM_COLORS.map((color) => (
-                  <TouchableOpacity
-                    key={color.value}
-                    style={[
-                      styles.colorButton,
-                      { backgroundColor: color.value },
-                      tempTeamAColor === color.value && styles.selectedColorButton
-                    ]}
-                    onPress={() => setTempTeamAColor(color.value)}
-                  />
-                ))}
+            {/* Botão: Administração */}
+            <TouchableOpacity
+              style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+              onPress={() => setShowAdminSettingsModal(true)}
+            >
+              <View style={styles.menuButtonContent}>
+                <Lock size={24} color={theme.primary} />
+                <Text style={[styles.menuButtonText, { color: theme.text }]}>Administração</Text>
               </View>
-            </View>
-          </View>
-          
-          {/* Equipa B */}
-          <View style={styles.teamSection}>
-            <Text style={[styles.teamTitle, { color: theme.text }]}>{t('settings.teamB')}</Text>
-            <View style={styles.teamNameRow}>
-              <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.name')}:</Text>
-              <TextInput
-                style={[styles.teamInput, { 
-                  backgroundColor: theme.inputBackground,
-                  color: theme.text,
-                  borderColor: theme.border
-                }]}
-                value={tempTeamBName}
-                onChangeText={setTempTeamBName}
-                placeholder={t('settings.teamBPlaceholder')}
-                placeholderTextColor={theme.placeholderText}
-              />
-            </View>
-            <View style={styles.teamColorRow}>
-              <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.color')}:</Text>
-              <View style={styles.colorButtonsContainer}>
-                {TEAM_COLORS.map((color) => (
-                  <TouchableOpacity
-                    key={color.value}
-                    style={[
-                      styles.colorButton,
-                      { backgroundColor: color.value },
-                      tempTeamBColor === color.value && styles.selectedColorButton
-                    ]}
-                    onPress={() => setTempTeamBColor(color.value)}
-                  />
-                ))}
-              </View>
-            </View>
-          </View>
-        </View>
-
-            <View style={[styles.section, { backgroundColor: theme.secondary }]}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>Administração</Text>
-              <TouchableOpacity
-                style={[styles.adminButton, { backgroundColor: theme.primary }]}
-                onPress={() => setShowAdminModal(true)}
-              >
-                <Shield size={20} color="#fff" />
-                <Text style={styles.adminButtonText}>Definir Novo Admin</Text>
-              </TouchableOpacity>
-            </View>
-      </>)}
-
-        <View style={styles.saveButtonContainer}>
-          <TouchableOpacity
-            style={[styles.saveButton, { backgroundColor: theme.primary }]}
-            onPress={saveAllSettings}
-          >
-            <Text style={styles.saveButtonText}>{t('common.saveSettings')}</Text>
-          </TouchableOpacity>
-        </View>
+              <ChevronRight size={24} color={theme.text} />
+            </TouchableOpacity>
+          </>
+        )}
 
         <TouchableOpacity 
           style={[
@@ -312,6 +209,251 @@ export default function SettingsScreen() {
           />
         )}
       </ScrollView>
+
+      {/* Modal: Perfil */}
+      <Modal
+        visible={showProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
+              <TouchableOpacity onPress={() => setShowProfileModal(false)}>
+                <X size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.themeRow}>
+                <View style={styles.themeInfo}>
+                  {isDarkMode ? <Moon size={24} color={theme.text} /> : <Sun size={24} color={theme.text} />}
+                  <Text style={[styles.themeText, { color: theme.text }]}>
+                    {isDarkMode ? t('settings.darkMode') : t('settings.lightMode')}
+                  </Text>
+                </View>
+                <Switch
+                  value={isDarkMode}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: '#767577', true: theme.primary }}
+                  thumbColor={isDarkMode ? '#f4f3f4' : '#f4f3f4'}
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Idioma */}
+      <Modal
+        visible={showLanguageModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>🌐 {t('settings.language')}</Text>
+              <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
+                <X size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.languageButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageButton,
+                    { 
+                      backgroundColor: language === 'pt' ? theme.primary : theme.cardBackground,
+                      borderColor: theme.border
+                    }
+                  ]}
+                  onPress={() => setLanguage('pt')}
+                >
+                  <Text style={[
+                    styles.languageButtonText,
+                    { color: language === 'pt' ? '#ffffff' : theme.text }
+                  ]}>
+                    Português
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageButton,
+                    { 
+                      backgroundColor: language === 'en' ? theme.primary : theme.cardBackground,
+                      borderColor: theme.border
+                    }
+                  ]}
+                  onPress={() => setLanguage('en')}
+                >
+                  <Text style={[
+                    styles.languageButtonText,
+                    { color: language === 'en' ? '#ffffff' : theme.text }
+                  ]}>
+                    English
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Personalizar Sorteio */}
+      <Modal
+        visible={showDrawModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDrawModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>⚽ Personalizar Sorteio</Text>
+              <TouchableOpacity onPress={() => setShowDrawModal(false)}>
+                <X size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {/* Variação de Rating */}
+              <View style={styles.ratingRow}>
+                <Text style={[styles.ratingText, { color: theme.text }]}>
+                  {t('settings.maxRatingVariation')}
+                </Text>
+                <TextInput
+                  style={[styles.ratingInput, { 
+                    backgroundColor: theme.inputBackground,
+                    color: theme.text,
+                    borderColor: theme.border
+                  }]}
+                  value={tempRatingVariation}
+                  onChangeText={(value) => {
+                    if (/^\d*\.?\d*$/.test(value)) {
+                      setTempRatingVariation(value);
+                    }
+                  }}
+                  keyboardType="decimal-pad"
+                  maxLength={4}
+                />
+              </View>
+
+              {/* Equipa A */}
+              <View style={styles.teamSection}>
+                <Text style={[styles.teamTitle, { color: theme.text }]}>{t('settings.teamA')}</Text>
+                <View style={styles.teamNameRow}>
+                  <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.name')}:</Text>
+                  <TextInput
+                    style={[styles.teamInput, { 
+                      backgroundColor: theme.inputBackground,
+                      color: theme.text,
+                      borderColor: theme.border
+                    }]}
+                    value={tempTeamAName}
+                    onChangeText={setTempTeamAName}
+                    placeholder={t('settings.teamAPlaceholder')}
+                    placeholderTextColor={theme.placeholderText}
+                  />
+                </View>
+                <View style={styles.teamColorRow}>
+                  <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.color')}:</Text>
+                  <View style={styles.colorButtonsContainer}>
+                    {TEAM_COLORS.map((color) => (
+                      <TouchableOpacity
+                        key={color.value}
+                        style={[
+                          styles.colorButton,
+                          { backgroundColor: color.value },
+                          tempTeamAColor === color.value && styles.selectedColorButton
+                        ]}
+                        onPress={() => setTempTeamAColor(color.value)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </View>
+              
+              {/* Equipa B */}
+              <View style={styles.teamSection}>
+                <Text style={[styles.teamTitle, { color: theme.text }]}>{t('settings.teamB')}</Text>
+                <View style={styles.teamNameRow}>
+                  <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.name')}:</Text>
+                  <TextInput
+                    style={[styles.teamInput, { 
+                      backgroundColor: theme.inputBackground,
+                      color: theme.text,
+                      borderColor: theme.border
+                    }]}
+                    value={tempTeamBName}
+                    onChangeText={setTempTeamBName}
+                    placeholder={t('settings.teamBPlaceholder')}
+                    placeholderTextColor={theme.placeholderText}
+                  />
+                </View>
+                <View style={styles.teamColorRow}>
+                  <Text style={[styles.teamLabel, { color: theme.text }]}>{t('settings.color')}:</Text>
+                  <View style={styles.colorButtonsContainer}>
+                    {TEAM_COLORS.map((color) => (
+                      <TouchableOpacity
+                        key={color.value}
+                        style={[
+                          styles.colorButton,
+                          { backgroundColor: color.value },
+                          tempTeamBColor === color.value && styles.selectedColorButton
+                        ]}
+                        onPress={() => setTempTeamBColor(color.value)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  saveAllSettings();
+                  setShowDrawModal(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>{t('common.saveSettings')}</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal: Administração */}
+      <Modal
+        visible={showAdminSettingsModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAdminSettingsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>🔐 Administração</Text>
+              <TouchableOpacity onPress={() => setShowAdminSettingsModal(false)}>
+                <X size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <TouchableOpacity
+                style={[styles.adminButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setShowAdminSettingsModal(false);
+                  setShowAdminModal(true);
+                }}
+              >
+                <Shield size={20} color="#fff" />
+                <Text style={styles.adminButtonText}>Definir Novo Admin</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {clusterName && (
         <AdminModal
@@ -342,6 +484,56 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     resizeMode: 'cover',
   },
+  title: {
+    fontSize: 24,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 20,
+  },
+  menuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  menuButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '50%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  modalBody: {
+    padding: 20,
+  },
   section: {
     borderRadius: 12,
     padding: 16,
@@ -370,6 +562,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 20,
   },
   ratingText: {
     fontSize: 16,
@@ -436,14 +629,11 @@ const styles = StyleSheet.create({
   selectedColorButton: {
     borderColor: '#ffffff',
   },
-  saveButtonContainer: {
-    marginTop: 20,
-    marginBottom: 20,
-  },
   saveButton: {
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 20,
   },
   saveButtonText: {
     color: '#fff',
@@ -454,7 +644,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 20,
     marginBottom: 16,
   },
   disabledButton: {
@@ -478,11 +668,6 @@ const styles = StyleSheet.create({
   languageButtonText: {
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
-  },
-  title: {
-    fontSize: 24,
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 20,
   },
   adminButton: {
     flexDirection: 'row',
