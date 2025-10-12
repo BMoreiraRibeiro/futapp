@@ -3,10 +3,6 @@
     "name": "Your FUTAPP",
     "slug": "fut",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
-    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "sdkVersion": "54.0.0",
     "android": {
@@ -14,16 +10,9 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#1a472a",
-        "padding": true
+        "backgroundColor": "#1a472a"
       },
-      "permissions": [],
-      "softwareKeyboardLayoutMode": "pan",
-      "navigationBar": {
-        "visible": "immersive",
-        "barStyle": "dark-content",
-        "backgroundColor": "#000000"
-      }
+      "permissions": []
     },
     "ios": {
       "supportsTablet": true,
@@ -35,16 +24,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
-      [
-        "expo-navigation-bar", 
-        {
-          "position": "absolute",
-          "visibility": "hidden",
-          "behavior": "overlay-swipe",
-          "backgroundColor": "#000000"
-        }
-      ]
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true
@@ -56,9 +36,6 @@
       "eas": {
         "projectId": "7d615b97-7861-42e6-8f48-f11c08b2acb0"
       }
-    },
-    "cli": {
-      "appVersionSource": "remote"
     },
     "owner": "bmoreiraribeiro"
   }
