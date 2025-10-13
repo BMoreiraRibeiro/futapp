@@ -106,6 +106,25 @@ function RootLayoutNav() {
   const [hasInternet, setHasInternet] = useState(true);
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
   
+  // 🔍 MONITOR: Rastreia mudanças nos estados do Auth
+  useEffect(() => {
+    console.log('📊 [_layout.tsx STATE] Auth estados:', {
+      isAuthenticated,
+      hasCluster,
+      clusterName,
+      sessionExists: !!session,
+      showClusterModal,
+      isValidating,
+      shouldRedirectToAuth
+    });
+  }, [isAuthenticated, hasCluster, clusterName, session, showClusterModal, isValidating, shouldRedirectToAuth]);
+
+  // 🔍 MONITOR: Detecta quando hasCluster muda
+  useEffect(() => {
+    console.log('🎯 [_layout.tsx] hasCluster mudou para:', hasCluster);
+    console.log('🎯 [_layout.tsx] showClusterModal atual:', showClusterModal);
+  }, [hasCluster]);
+  
   // Esconde a barra de navegação do Android
   useEffect(() => {
     const hideNavigationBar = async () => {
@@ -276,18 +295,21 @@ function RootLayoutNav() {
 
   // Mostra modal de sem internet
   if (showNoInternetModal) {
+    console.log('🌐 [RENDER] Mostrando NoInternetModal');
     return <NoInternetModal visible={showNoInternetModal} onRetry={handleRetryConnection} />;
   }
 
   // Mostra o CustomSplashScreen enquanto está inicializando ou validando
   if (isInitializing || isValidating) {
+    console.log('⏳ [RENDER] Mostrando SplashScreen -', isInitializing ? 'Inicializando' : 'Validando');
     return <CustomSplashScreen message={isInitializing ? "Carregando..." : "Validando sessão..."} />;
   }
 
   // CRÍTICO: Se está autenticado MAS não tem cluster, mostra APENAS o ClusterModal
   // NÃO renderizar Stack ou tabs quando showClusterModal está true
   if (isAuthenticated && !shouldRedirectToAuth && showClusterModal && session) {
-    console.log('🎯 Renderizando APENAS ClusterModal (sem tabs)');
+    console.log('🎯 [RENDER] Renderizando APENAS ClusterModal (sem tabs)');
+    console.log('🎯 [RENDER] Condições: isAuth=', isAuthenticated, 'shouldRedirect=', shouldRedirectToAuth, 'showModal=', showClusterModal, 'hasSession=', !!session);
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <ClusterModal
@@ -301,14 +323,18 @@ function RootLayoutNav() {
 
   // VERIFICAÇÃO ADICIONAL: Se não tem cluster válido, NÃO renderizar as tabs
   if (isAuthenticated && !hasCluster && !showClusterModal) {
-    console.log('⚠️ Estado inconsistente: autenticado sem cluster mas modal não está visível. Forçando validação...');
+    console.log('⚠️ [RENDER] Estado inconsistente detectado!');
+    console.log('⚠️ [RENDER] isAuth=', isAuthenticated, 'hasCluster=', hasCluster, 'showModal=', showClusterModal);
+    console.log('⚠️ [RENDER] Forçando re-validação...');
     // Força re-validação
     setIsValidating(true);
     return <CustomSplashScreen message="Re-validando..." />;
   }
 
   // Em vez de usar router.replace, decidimos qual tela mostrar usando condicionais
-  console.log('🎯 Renderizando Stack:', shouldRedirectToAuth || !isAuthenticated ? 'auth' : '(tabs)');
+  const renderingScreen = shouldRedirectToAuth || !isAuthenticated ? 'auth' : '(tabs)';
+  console.log('🎯 [RENDER] Renderizando Stack:', renderingScreen);
+  console.log('🎯 [RENDER] Motivo:', shouldRedirectToAuth ? 'shouldRedirectToAuth=true' : !isAuthenticated ? 'não autenticado' : 'autenticado com cluster');
   return (
     <ResultsProvider>
       <>

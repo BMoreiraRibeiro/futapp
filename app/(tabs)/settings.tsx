@@ -181,19 +181,31 @@ export default function SettingsScreen() {
       setShowAdminSettingsModal(false);
       
       // CRÍTICO: Limpar estados IMEDIATAMENTE (síncrono)
-      console.log('🧹 Limpando estados do cluster IMEDIATAMENTE...');
+      console.log('🧹 [LEAVE] Limpando estados do cluster IMEDIATAMENTE...');
+      console.log('🧹 [LEAVE] Estados ANTES de clearClusterState - usar useAuth para ver os valores atuais');
+      
       clearClusterState();
+      console.log('✅ [LEAVE] clearClusterState() executado');
+      
+      // Verificar se os estados foram limpos (com timeout para aguardar React batching)
+      setTimeout(() => {
+        console.log('🔍 [LEAVE] Verificação pós-clear (após React batching)');
+        // Os logs do monitor useEffect no auth.tsx vão mostrar os valores
+      }, 100);
       
       // Depois, buscar do banco (assíncrono) para confirmar
-      console.log('🔄 Confirmando com banco de dados...');
+      console.log('🔄 [LEAVE] Confirmando com banco de dados...');
       await updateClusterState();
+      console.log('✅ [LEAVE] updateClusterState() executado');
       
       // Pequena espera para garantir que o estado foi atualizado
+      console.log('⏳ [LEAVE] Aguardando 500ms...');
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Fazer logout para limpar completamente a sessão
-      console.log('🚪 Fazendo logout após sair do cluster...');
+      console.log('🚪 [LEAVE] Fazendo logout após sair do cluster...');
       await signOut();
+      console.log('✅ [LEAVE] signOut() executado');
     } catch (error: any) {
       console.error('💥 ERRO ao sair do cluster:', error);
       showToast(error.message || 'Erro ao sair do cluster', 'error');

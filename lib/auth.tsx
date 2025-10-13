@@ -50,6 +50,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
   const { t } = useLanguage();
 
+  // 🔍 MONITOR: Rastreia TODAS as mudanças de estado
+  useEffect(() => {
+    console.log('📊 [STATE MONITOR] Estado atual:', {
+      isAuthenticated,
+      hasCluster,
+      clusterName,
+      clusterDisplayName,
+      isAdmin,
+      sessionExists: !!session,
+      userId: session?.user?.id || 'N/A'
+    });
+  }, [isAuthenticated, hasCluster, clusterName, clusterDisplayName, isAdmin, session]);
+
+  // 🔍 MONITOR: Rastreia mudanças específicas do hasCluster
+  useEffect(() => {
+    console.log('🎯 [hasCluster CHANGED] Novo valor:', hasCluster);
+    console.log('🎯 [hasCluster CONTEXT] isAuthenticated:', isAuthenticated, 'clusterName:', clusterName);
+  }, [hasCluster]);
+
+  // 🔍 MONITOR: Rastreia mudanças de sessão
+  useEffect(() => {
+    if (session) {
+      console.log('🔐 [SESSION CHANGED] Nova sessão:', session.user.id);
+    } else {
+      console.log('🔐 [SESSION CHANGED] Sessão removida');
+    }
+  }, [session]);
+
   const clearSessionData = async () => {
     try {
       console.log('🧹 clearSessionData - Limpando todos os dados da sessão');
@@ -282,11 +310,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearClusterState = () => {
     console.log('🧹 clearClusterState - Limpando estados do cluster IMEDIATAMENTE');
+    console.log('🧹 clearClusterState - Estados ANTES:', { hasCluster, clusterName, clusterDisplayName, isAdmin });
+    
     setHasCluster(false);
     setClusterName(null);
     setClusterDisplayName(null);
     setIsAdmin(false);
-    console.log('✅ clearClusterState - Estados limpos: hasCluster=false, clusterName=null');
+    
+    // Verificação imediata (não vai mostrar o novo valor por causa do batching do React)
+    console.log('✅ clearClusterState - Estados limpos (comandos executados)');
+    
+    // Agendar verificação após o React fazer o batching
+    setTimeout(() => {
+      console.log('🔍 clearClusterState - VERIFICAÇÃO PÓS-CLEAR:', { hasCluster, clusterName, clusterDisplayName, isAdmin });
+    }, 0);
   };
 
   const refreshClusterDisplayName = async () => {
