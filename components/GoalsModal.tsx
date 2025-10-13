@@ -50,7 +50,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId)
+        .eq('cluster_uuid', clusterId)
         .single();
 
       if (gameError) throw gameError;
@@ -60,7 +60,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
         .from('golos_por_jogador')
         .select('nome_jogador, numero_golos')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId);
+        .eq('cluster_uuid', clusterId);
 
       if (goalsError) throw goalsError;
 
@@ -144,13 +144,13 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
         .from('golos_por_jogador')
         .upsert(
           {
-            cluster_id: clusterId,
+            cluster_uuid: clusterId,
             nome_jogador: player.nome,
             id_jogo: gameId,
             numero_golos: Number(player.golos)
           },
           {
-            onConflict: 'cluster_id,nome_jogador,id_jogo'
+            onConflict: 'cluster_uuid,nome_jogador,id_jogo'
           }
         );
 

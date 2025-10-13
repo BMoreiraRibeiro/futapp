@@ -125,7 +125,7 @@ export default function IndexScreen() {
       const { data, error } = await supabase
         .from('jogadores')
         .select('*')
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .eq('visivel', true)
         .order('nome');
 
@@ -271,7 +271,7 @@ export default function IndexScreen() {
         .from('resultados_jogos')
         .insert([
           {
-            cluster_id: clusterName,
+            cluster_uuid: clusterName,
             data: new Date().toISOString().split('T')[0],
             jogadores_equipa_a: teams[0].players.map(p => p.nome).join(', '),
             jogadores_equipa_b: teams[1].players.map(p => p.nome).join(', '),
@@ -288,7 +288,7 @@ export default function IndexScreen() {
         const allPlayers = [...teams[0].players, ...teams[1].players];
         
         const calotesRecords = allPlayers.map(player => ({
-          cluster_id: clusterName,
+          cluster_uuid: clusterName,
           nome_jogador: player.nome,
           id_jogo: gameId,
           pago: false

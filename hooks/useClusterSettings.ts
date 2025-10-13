@@ -41,7 +41,7 @@ export function useClusterSettings(clusterName: string | null) {
       const { data, error: fetchError } = await supabase
         .from('clusters')
         .select('configuracoes')
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .single();
 
       if (fetchError) {
@@ -93,7 +93,7 @@ export function useClusterSettings(clusterName: string | null) {
       const { error: updateError } = await supabase
         .from('clusters')
         .update({ configuracoes: newSettings })
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       if (updateError) {
         throw updateError;
@@ -146,7 +146,7 @@ export function useClusterSettings(clusterName: string | null) {
           event: 'UPDATE',
           schema: 'public',
           table: 'clusters',
-          filter: `cluster_id=eq.${clusterName}`,
+          filter: `cluster_uuid=eq.${clusterName}`,
         },
         (payload: any) => {
           console.log('Configurações atualizadas:', payload);

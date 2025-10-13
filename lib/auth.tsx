@@ -10,9 +10,12 @@ type AuthContextType = {
   isAuthenticated: boolean;
   hasCluster: boolean;
   clusterName: string | null;
+  clusterDisplayName: string | null;
   isAdmin: boolean;
   signOut: () => Promise<void>;
   updateClusterState: () => Promise<void>;
+  refreshClusterDisplayName: () => Promise<void>;
+  clearClusterState: () => void;
   isSessionValid: () => boolean;
   isInitializing: boolean;
 };
@@ -22,9 +25,12 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   hasCluster: false,
   clusterName: null,
+  clusterDisplayName: null,
   isAdmin: false,
   signOut: async () => {},
   updateClusterState: async () => {},
+  refreshClusterDisplayName: async () => {},
+  clearClusterState: () => {},
   isSessionValid: () => false,
   isInitializing: true,
 });
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasCluster, setHasCluster] = useState(false);
   const [clusterName, setClusterName] = useState<string | null>(null);
+  const [clusterDisplayName, setClusterDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,11 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAuthenticated(false);
       setHasCluster(false);
       setClusterName(null);
+      setClusterDisplayName(null);
       setIsAdmin(false);
 
       const keys = await AsyncStorage.getAllKeys();
       const clearKeys = keys.filter(key => 
-        key.startsWith('supabase.auth.') || key === '@cluster_id'
+        key.startsWith('supabase.auth.') || key === '@cluster_uuid'
       );
       if (clearKeys.length > 0) {
         await AsyncStorage.multiRemove(clearKeys);
@@ -71,24 +79,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       setIsSigningOut(true);
+      console.log('🚪 signOut - Iniciando processo de logout...');
 
-      // Faz logout no Supabase primeiro
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Erro ao fazer logout no Supabase:', error.message);
-        throw error;
-      }
-
-      // Limpa os dados locais
+      // Limpa os dados locais PRIMEIRO
+      console.log('🧹 signOut - Limpando dados locais...');
       await clearSessionData();
 
-      // Força uma pequena espera antes do redirecionamento
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Faz logout no Supabase DEPOIS
+      console.log('🔓 signOut - Fazendo logout no Supabase...');
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('❌ signOut - Erro ao fazer logout no Supabase:', error.message);
+        // Mesmo com erro, continua o processo para garantir limpeza local
+      } else {
+        console.log('✅ signOut - Logout no Supabase concluído');
+      }
 
+      // Força uma pequena espera antes do redirecionamento
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      console.log('🔄 signOut - Redirecionando para /auth');
       await router.replace('/auth');
+      console.log('✅ signOut - Logout completo');
     } catch (error) {
-      console.error('Erro crítico durante logout:', error);
-      throw error;
+      console.error('💥 signOut - Erro crítico durante logout:', error);
+      // Mesmo com erro, tenta redirecionar
+      try {
+        await router.replace('/auth');
+      } catch (routerError) {
+        console.error('💥 signOut - Erro ao redirecionar:', routerError);
+      }
     } finally {
       setIsSigningOut(false);
     }
@@ -96,41 +116,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchClusterInfo = async () => {
     try {
+      console.log('🔍 fetchClusterInfo - Iniciando busca de cluster...');
+      console.log('🔍 fetchClusterInfo - session.user.id:', session?.user.id);
+      
       // Verifica diretamente no banco de dados
       if (session?.user.id) {
         const { data: member, error: memberError } = await supabase
           .from('cluster_members')
-          .select('cluster_id, nome, admin')
+          .select('cluster_uuid, nome, admin')
           .eq('user_id', session.user.id)
           .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
+        console.log('🔍 fetchClusterInfo - Resultado da query:', { member, error: memberError });
+
         // Se houver erro E não for "nenhum resultado encontrado"
         if (memberError && memberError.code !== 'PGRST116') {
-          console.error('Erro ao verificar clube:', memberError.message);
+          console.error('❌ fetchClusterInfo - Erro ao verificar clube:', memberError.message);
           throw memberError;
         }
 
         if (member) {
-          console.log('🔍 fetchClusterInfo - Cluster encontrado:', member);
+          console.log('✅ fetchClusterInfo - Cluster encontrado:', member);
+          
+          // Buscar o nome_cluster da tabela clusters
+          const { data: clusterData } = await supabase
+            .from('clusters')
+            .select('nome_cluster')
+            .eq('cluster_uuid', member.cluster_uuid)
+            .single();
+          
           setHasCluster(true);
-          setClusterName(member.cluster_id);
+          setClusterName(member.cluster_uuid);
+          setClusterDisplayName(clusterData?.nome_cluster || 'Cluster');
           setIsAdmin(member.admin || false);
-          console.log('🔍 fetchClusterInfo - isAdmin definido como:', member.admin || false);
+          console.log('✅ fetchClusterInfo - Estados atualizados: hasCluster=true, clusterName=', member.cluster_uuid);
         } else {
-          console.log('🔍 fetchClusterInfo - Nenhum cluster encontrado');
+          console.log('� fetchClusterInfo - Nenhum cluster encontrado, limpando estados...');
           setHasCluster(false);
           setClusterName(null);
+          setClusterDisplayName(null);
           setIsAdmin(false);
+          console.log('✅ fetchClusterInfo - Estados limpos: hasCluster=false, clusterName=null');
         }
       } else {
+        console.log('⚠️ fetchClusterInfo - Sem session.user.id, limpando estados...');
         setHasCluster(false);
         setClusterName(null);
+        setClusterDisplayName(null);
         setIsAdmin(false);
       }
     } catch (error) {
       console.error('Erro ao buscar informações do clube:', error);
       setHasCluster(false);
       setClusterName(null);
+      setClusterDisplayName(null);
       setIsAdmin(false);
     }
   };
@@ -157,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Busca informações do clube logo após o login
         const { data: member, error: memberError } = await supabase
           .from('cluster_members')
-          .select('cluster_id, nome, admin')
+          .select('cluster_uuid, nome, admin')
           .eq('user_id', data.session.user.id)
           .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
@@ -165,17 +204,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (memberError && memberError.code !== 'PGRST116') {
           console.error('Erro ao buscar clube:', memberError.message);
         } else if (member) {
+          // Buscar o nome_cluster da tabela clusters
+          const { data: clusterData } = await supabase
+            .from('clusters')
+            .select('nome_cluster')
+            .eq('cluster_uuid', member.cluster_uuid)
+            .single();
+          
           setHasCluster(true);
-          setClusterName(member.cluster_id);
+          setClusterName(member.cluster_uuid);
+          setClusterDisplayName(clusterData?.nome_cluster || 'Cluster');
           setIsAdmin(member.admin || false);
         } else {
           console.log('📋 Utilizador sem cluster após login');
           setHasCluster(false);
           setClusterName(null);
+          setClusterDisplayName(null);
           setIsAdmin(false);
         }
 
-        router.replace('/(tabs)');
+        // NÃO fazer router.replace aqui - deixar o _layout.tsx decidir
+        // baseado na validação completa (session + cluster)
+        console.log('✅ Login bem-sucedido, aguardando validação no _layout');
       }
     } catch (error) {
       console.error('Erro crítico no login:', error);
@@ -226,7 +276,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateClusterState = async () => {
+    console.log('🔄 updateClusterState - Chamado');
     await fetchClusterInfo();
+  };
+
+  const clearClusterState = () => {
+    console.log('🧹 clearClusterState - Limpando estados do cluster IMEDIATAMENTE');
+    setHasCluster(false);
+    setClusterName(null);
+    setClusterDisplayName(null);
+    setIsAdmin(false);
+    console.log('✅ clearClusterState - Estados limpos: hasCluster=false, clusterName=null');
+  };
+
+  const refreshClusterDisplayName = async () => {
+    if (!clusterName) return;
+    
+    try {
+      console.log('🔄 refreshClusterDisplayName - Atualizando nome do cluster...');
+      const { data: clusterData } = await supabase
+        .from('clusters')
+        .select('nome_cluster')
+        .eq('cluster_uuid', clusterName)
+        .single();
+      
+      if (clusterData) {
+        setClusterDisplayName(clusterData.nome_cluster || 'Cluster');
+        console.log('✅ refreshClusterDisplayName - Nome atualizado:', clusterData.nome_cluster);
+      }
+    } catch (error) {
+      console.error('❌ refreshClusterDisplayName - Erro:', error);
+    }
   };
 
   const isSessionValid = () => {
@@ -246,9 +326,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated, 
       hasCluster,
       clusterName,
+      clusterDisplayName,
       isAdmin,
       signOut,
       updateClusterState,
+      refreshClusterDisplayName,
+      clearClusterState,
       isSessionValid,
       isInitializing
     }}>

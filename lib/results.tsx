@@ -38,7 +38,7 @@ export function ResultsProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase
         .from('resultados_jogos')
         .select('*')
-        .eq('cluster_id', clusterId)
+        .eq('cluster_uuid', clusterId)
         .order('data', { ascending: false });
 
       if (error) throw error;

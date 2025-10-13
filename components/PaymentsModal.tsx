@@ -55,7 +55,7 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId)
+        .eq('cluster_uuid', clusterId)
         .single();
 
       if (gameError) throw gameError;
@@ -66,7 +66,7 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         .from('calotes_jogo')
         .select('nome_jogador, pago')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId);
+        .eq('cluster_uuid', clusterId);
 
       if (paymentsError) throw paymentsError;
       console.log('💳 Pagamentos encontrados:', paymentsData?.length, paymentsData);
@@ -147,12 +147,12 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         const { data, error } = await supabase
           .from('calotes_jogo')
           .upsert({
-            cluster_id: clusterId,
+            cluster_uuid: clusterId,
             id_jogo: gameId,
             nome_jogador: player.nome,
             pago: player.pago
           }, {
-            onConflict: 'cluster_id,id_jogo,nome_jogador'
+            onConflict: 'cluster_uuid,id_jogo,nome_jogador'
           })
           .select();
 

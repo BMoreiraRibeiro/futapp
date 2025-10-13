@@ -14,7 +14,6 @@ interface AdminModalProps {
 
 interface Player {
   nome: string;
-  cluster_id: string;
   user_id: string;
   admin: boolean;
 }
@@ -42,8 +41,8 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
       // Buscar TODOS os membros do cluster que têm user_id
       const { data, error } = await supabase
         .from('cluster_members')
-        .select('nome, cluster_id, user_id, admin')
-        .eq('cluster_id', currentClusterId)
+        .select('nome, user_id, admin')
+        .eq('cluster_uuid', currentClusterId)
         .not('user_id', 'is', null)
         .not('nome', 'is', null)
         .order('nome');
@@ -90,7 +89,7 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
       const { error } = await supabase
         .from('cluster_members')
         .update({ admin: true })
-        .eq('cluster_id', currentClusterId)
+        .eq('cluster_uuid', currentClusterId)
         .in('nome', selectedPlayers);
 
       if (error) {
@@ -117,7 +116,7 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
       const { error } = await supabase
         .from('cluster_members')
         .update({ admin: false })
-        .eq('cluster_id', currentClusterId)
+        .eq('cluster_uuid', currentClusterId)
         .in('nome', selectedPlayers);
 
       if (error) {

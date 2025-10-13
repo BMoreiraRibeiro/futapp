@@ -66,7 +66,7 @@ export default function FinancesScreen() {
       const { data: gamesData, error: gamesError } = await supabase
         .from('resultados_jogos')
         .select('id_jogo, data')
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .order('data', { ascending: false });
 
       if (gamesError) throw gamesError;
@@ -76,7 +76,7 @@ export default function FinancesScreen() {
       const { data: calotesData, error: calotesError } = await supabase
         .from('calotes_jogo')
         .select('id_jogo, nome_jogador, pago')
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       if (calotesError) throw calotesError;
       console.log('💳 Registos de calotes encontrados:', calotesData?.length);
@@ -129,7 +129,7 @@ export default function FinancesScreen() {
               const { error: calotesError } = await supabase
                 .from('calotes_jogo')
                 .delete()
-                .eq('cluster_id', clusterName)
+                .eq('cluster_uuid', clusterName)
                 .eq('id_jogo', idJogo);
 
               if (calotesError) throw calotesError;
@@ -138,7 +138,7 @@ export default function FinancesScreen() {
               const { error: gameError } = await supabase
                 .from('resultados_jogos')
                 .delete()
-                .eq('cluster_id', clusterName)
+                .eq('cluster_uuid', clusterName)
                 .eq('id_jogo', idJogo);
 
               if (gameError) throw gameError;

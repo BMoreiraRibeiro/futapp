@@ -72,7 +72,7 @@ export default function ResultsScreen() {
       const { data: games, error } = await supabase
         .from('resultados_jogos')
         .select('data')
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       if (error) throw error;
 
@@ -129,7 +129,7 @@ export default function ResultsScreen() {
         .from('resultados_jogos')
         .delete()
         .match({ 
-          cluster_id: clusterName,
+          cluster_uuid: clusterName,
           id_jogo: id_jogo 
         });
 
@@ -155,7 +155,7 @@ export default function ResultsScreen() {
       const { error } = await supabase
         .from('resultados_jogos')
         .update({ vencedor: winner })
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .eq('id_jogo', id_jogo);
 
       if (error) throw error;

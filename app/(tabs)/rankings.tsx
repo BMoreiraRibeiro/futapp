@@ -54,7 +54,7 @@ export default function RankingsScreen() {
       const { data: games, error } = await supabase
         .from('resultados_jogos')
         .select('data')
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       if (error) throw error;
 
@@ -96,7 +96,7 @@ export default function RankingsScreen() {
       let gamesQuery = supabase
         .from('resultados_jogos')
         .select('*')
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       // Query base para gols com JOIN para pegar a data
       let goalsQuery = supabase
@@ -107,7 +107,7 @@ export default function RankingsScreen() {
             data
           )
         `)
-        .eq('cluster_id', clusterName);
+        .eq('cluster_uuid', clusterName);
 
       // Adicionar filtro por ano se não for "total"
       if (selectedYear !== 'total') {

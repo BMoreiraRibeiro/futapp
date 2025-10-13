@@ -159,6 +159,7 @@ function RootLayoutNav() {
           return;
         }
 
+        // IMPORTANTE: Sempre iniciar como "validando" para evitar flash de conteúdo
         setIsValidating(true);
 
         // 1. Verificar se tem internet
@@ -181,10 +182,13 @@ function RootLayoutNav() {
         if (isAuthenticated && session?.user.id) {
           console.log('✅ validateAuth - Usuário autenticado, verificando cluster...');
           
+          // Adicionar pequeno delay para evitar flash visual
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           // Verifica se o usuário já é membro de algum cluster
           const { data: member, error } = await supabase
             .from('cluster_members')
-            .select('cluster_id')
+            .select('cluster_uuid')
             .eq('user_id', session.user.id)
             .maybeSingle(); // Usa maybeSingle() em vez de single() para evitar erro quando não há resultados
 
@@ -197,10 +201,37 @@ function RootLayoutNav() {
             return;
           }
 
-          const hasExistingCluster = !!member;
-          console.log('🔍 validateAuth - Cluster encontrado?', hasExistingCluster, 'Data:', member);
+          let hasValidCluster = false;
 
-          if (hasExistingCluster) {
+          // Se tem um member, verificar se o cluster ainda existe
+          if (member) {
+            console.log('🔍 validateAuth - Member encontrado, verificando se cluster existe...');
+            const { data: cluster, error: clusterError } = await supabase
+              .from('clusters')
+              .select('cluster_uuid')
+              .eq('cluster_uuid', member.cluster_uuid)
+              .maybeSingle();
+
+            if (clusterError && clusterError.code !== 'PGRST116') {
+              console.error('❌ validateAuth - Erro ao verificar cluster:', clusterError);
+            }
+
+            if (cluster) {
+              hasValidCluster = true;
+              console.log('✅ validateAuth - Cluster válido encontrado:', cluster.cluster_uuid);
+            } else {
+              console.warn('⚠️ validateAuth - Cluster não existe mais, limpando member órfão...');
+              // Cluster não existe mais, limpar o member órfão
+              await supabase
+                .from('cluster_members')
+                .delete()
+                .eq('user_id', session.user.id);
+            }
+          }
+
+          console.log('🔍 validateAuth - Cluster válido?', hasValidCluster, 'Data:', member);
+
+          if (hasValidCluster) {
             console.log('✅ validateAuth - Utilizador com cluster, escondendo modal');
             setShowClusterModal(false); // Garante que o modal está escondido
             await updateClusterState();
@@ -253,7 +284,31 @@ function RootLayoutNav() {
     return <CustomSplashScreen message={isInitializing ? "Carregando..." : "Validando sessão..."} />;
   }
 
+  // CRÍTICO: Se está autenticado MAS não tem cluster, mostra APENAS o ClusterModal
+  // NÃO renderizar Stack ou tabs quando showClusterModal está true
+  if (isAuthenticated && !shouldRedirectToAuth && showClusterModal && session) {
+    console.log('🎯 Renderizando APENAS ClusterModal (sem tabs)');
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <ClusterModal
+          visible={showClusterModal}
+          userId={session.user.id}
+          onComplete={handleClusterCreated}
+        />
+      </View>
+    );
+  }
+
+  // VERIFICAÇÃO ADICIONAL: Se não tem cluster válido, NÃO renderizar as tabs
+  if (isAuthenticated && !hasCluster && !showClusterModal) {
+    console.log('⚠️ Estado inconsistente: autenticado sem cluster mas modal não está visível. Forçando validação...');
+    // Força re-validação
+    setIsValidating(true);
+    return <CustomSplashScreen message="Re-validando..." />;
+  }
+
   // Em vez de usar router.replace, decidimos qual tela mostrar usando condicionais
+  console.log('🎯 Renderizando Stack:', shouldRedirectToAuth || !isAuthenticated ? 'auth' : '(tabs)');
   return (
     <ResultsProvider>
       <>
@@ -278,15 +333,6 @@ function RootLayoutNav() {
           <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
         </Stack>
         <StatusBar style="light" />
-        
-        {/* Mostra o ClusterModal se estiver marcado para mostrar E tiver sessão */}
-        {session && showClusterModal && !shouldRedirectToAuth && (
-          <ClusterModal
-            visible={showClusterModal}
-            userId={session.user.id}
-            onComplete={handleClusterCreated}
-          />
-        )}
       </>
     </ResultsProvider>
   );

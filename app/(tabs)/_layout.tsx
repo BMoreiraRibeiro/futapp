@@ -8,13 +8,10 @@ import { colors } from '../../lib/colors';
 import { useLanguage } from '../../lib/language';
 
 function Header() {
-  const { clusterName } = useAuth();
+  const { clusterDisplayName } = useAuth();
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const router = useRouter();
-
-  console.warn('🎯 Header: Renderizando com clusterName:', clusterName);
-
 
   return (
     <LinearGradient
@@ -32,7 +29,7 @@ function Header() {
           <View style={styles.clusterRow}>
             <Text style={styles.separator}>Clube:</Text>
             <Text style={styles.clusterName}>
-              {clusterName}
+              {clusterDisplayName || 'Carregando...'}
             </Text>
           </View>
         </View>

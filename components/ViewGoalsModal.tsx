@@ -42,7 +42,7 @@ export function ViewGoalsModal({ visible, onClose, gameId, clusterId }: ViewGoal
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId)
+        .eq('cluster_uuid', clusterId)
         .single();
 
       if (gameError) throw gameError;
@@ -52,7 +52,7 @@ export function ViewGoalsModal({ visible, onClose, gameId, clusterId }: ViewGoal
         .from('golos_por_jogador')
         .select('nome_jogador, numero_golos')
         .eq('id_jogo', gameId)
-        .eq('cluster_id', clusterId);
+        .eq('cluster_uuid', clusterId);
 
       if (goalsError) throw goalsError;
 

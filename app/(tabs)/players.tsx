@@ -24,8 +24,6 @@ export default function PlayersScreen() {
   const { clusterName } = useAuth();
   const { t } = useLanguage();
   const [players, setPlayers] = useState<Player[]>([]);
-  const [newPlayerName, setNewPlayerName] = useState('');
-  const [newPlayerRating, setNewPlayerRating] = useState('');
   const [loading, setLoading] = useState(false);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
@@ -42,8 +40,12 @@ export default function PlayersScreen() {
   const [playerRating, setPlayerRating] = useState('');
 
   useEffect(() => {
+    console.log('🔄 Players: useEffect disparado, clusterName:', clusterName);
     if (clusterName) {
+      console.log('✅ Players: clusterName existe, chamando fetchPlayers...');
       fetchPlayers();
+    } else {
+      console.warn('⚠️ Players: clusterName é null, não vai buscar jogadores');
     }
   }, [clusterName]);
 
@@ -61,74 +63,36 @@ export default function PlayersScreen() {
 
   const fetchPlayers = async () => {
     if (!clusterName) {
-      console.warn('fetchPlayers: clusterName é null');
+      console.warn('⚠️ fetchPlayers: clusterName é null');
       return;
     }
 
     try {
       setLoading(true);
+      console.log('🔍 fetchPlayers: Buscando jogadores para cluster:', clusterName);
+      
       const { data, error } = await supabase
         .from('jogadores')
         .select('*')
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .order('nome');
 
-      if (error) throw error;
+      console.log('🔍 fetchPlayers: Resultado:', { 
+        count: data?.length || 0, 
+        error: error?.message,
+        data: data 
+      });
+
+      if (error) {
+        console.error('❌ fetchPlayers: Erro:', error);
+        throw error;
+      }
+      
       setPlayers(data || []);
-    } catch (error) {
-      console.error('Erro ao buscar jogadores:', error);
+      console.log('✅ fetchPlayers: Players state atualizado com', data?.length || 0, 'jogadores');
+    } catch (error: any) {
+      console.error('💥 fetchPlayers: Erro crítico:', error);
       showToast('Erro ao carregar jogadores', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddPlayer = async () => {
-    if (!clusterName) {
-      showToast('Erro: cluster não identificado', 'error');
-      return;
-    }
-
-    if (!newPlayerName.trim()) {
-      showToast('Por favor, insira o nome do jogador', 'error');
-      return;
-    }
-
-    if (!newPlayerRating.trim()) {
-      showToast('Por favor, insira o rating do jogador', 'error');
-      return;
-    }
-
-    const rating = parseInt(newPlayerRating);
-    if (isNaN(rating)) {
-      showToast('Rating deve ser um número', 'error');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const { error } = await supabase
-        .from('jogadores')
-        .insert([
-          {
-            cluster_id: clusterName,
-            nome: newPlayerName.trim(),
-            rating: rating,
-            numero_vitorias: 0,
-            numero_jogos: 0,
-            visivel: true
-          }
-        ]);
-
-      if (error) throw error;
-
-      showToast('Jogador adicionado com sucesso!', 'success');
-      setNewPlayerName('');
-      setNewPlayerRating('');
-      fetchPlayers();
-    } catch (error) {
-      console.error('Erro ao adicionar jogador:', error);
-      showToast('Erro ao adicionar jogador', 'error');
     } finally {
       setLoading(false);
     }
@@ -149,7 +113,7 @@ export default function PlayersScreen() {
               const { error } = await supabase
                 .from('jogadores')
                 .delete()
-                .eq('cluster_id', clusterName)
+                .eq('cluster_uuid', clusterName)
                 .eq('nome', nome);
 
               if (error) throw error;
@@ -174,7 +138,7 @@ export default function PlayersScreen() {
       const { error } = await supabase
         .from('jogadores')
         .update({ visivel: !currentVisibility })
-        .eq('cluster_id', clusterName)
+        .eq('cluster_uuid', clusterName)
         .eq('nome', nome);
 
       if (error) throw error;
@@ -197,6 +161,8 @@ export default function PlayersScreen() {
   };
 
   const handleSave = async () => {
+    console.log('💾 Players: handleSave chamado, editingPlayer:', editingPlayer);
+    
     if (!playerName.trim()) {
       showToast('Por favor, insira o nome do jogador', 'error');
       return;
@@ -213,27 +179,99 @@ export default function PlayersScreen() {
       return;
     }
 
+    // Se editingPlayer é null, é uma INSERÇÃO, caso contrário é UPDATE
+    if (!editingPlayer) {
+      console.log('➕ Players: Modo INSERÇÃO detectado');
+      await handleInsertNewPlayer(playerName.trim(), rating);
+    } else {
+      console.log('✏️ Players: Modo EDIÇÃO detectado');
+      await handleUpdatePlayer(playerName.trim(), rating);
+    }
+  };
+
+  const handleInsertNewPlayer = async (nome: string, rating: number) => {
+    if (!clusterName) {
+      showToast('Erro: cluster não identificado', 'error');
+      return;
+    }
+
     try {
       setLoading(true);
-      const { error } = await supabase
+      console.log('➕ Players: Inserindo novo jogador...');
+      console.log('➕ Players: Cluster UUID:', clusterName);
+      console.log('➕ Players: Nome:', nome);
+      console.log('➕ Players: Rating:', rating);
+      
+      const { data, error } = await supabase
         .from('jogadores')
-        .update({
-          nome: playerName.trim(),
-          rating: rating,
-          visivel: true
-        })
-        .eq('cluster_id', clusterName)
-        .eq('nome', editingPlayer?.nome);
+        .insert([
+          {
+            cluster_uuid: clusterName,
+            nome: nome,
+            rating: rating,
+            numero_vitorias: 0,
+            numero_jogos: 0,
+            empates: 0,
+            derrotas: 0,
+            golos_marcados: 0,
+            visivel: true
+          }
+        ])
+        .select();
 
-      if (error) throw error;
+      console.log('➕ Players: Resultado do insert:', { data, error });
 
-      showToast('Jogador atualizado com sucesso!', 'success');
+      if (error) {
+        console.error('❌ Players: Erro ao inserir:', error);
+        console.error('❌ Players: Código do erro:', error.code);
+        console.error('❌ Players: Mensagem do erro:', error.message);
+        console.error('❌ Players: Detalhes:', error.details);
+        throw error;
+      }
+
+      console.log('✅ Players: Jogador adicionado:', data);
+      showToast('Jogador adicionado com sucesso!', 'success');
       setPlayerName('');
       setPlayerRating('');
       setModalVisible(false);
       fetchPlayers();
+    } catch (error: any) {
+      console.error('💥 Players: Erro crítico ao adicionar jogador:', error);
+      showToast(error?.message || 'Erro ao adicionar jogador', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePlayer = async (nome: string, rating: number) => {
+    try {
+      setLoading(true);
+      console.log('✏️ Players: Atualizando jogador...');
+      console.log('✏️ Players: Nome original:', editingPlayer?.nome);
+      console.log('✏️ Players: Novo nome:', nome);
+      console.log('✏️ Players: Novo rating:', rating);
+      
+      const { error } = await supabase
+        .from('jogadores')
+        .update({
+          nome: nome,
+          rating: rating,
+          visivel: true
+        })
+        .eq('cluster_uuid', clusterName)
+        .eq('nome', editingPlayer?.nome);
+
+      if (error) throw error;
+
+      console.log('✅ Players: Jogador atualizado');
+      showToast('Jogador atualizado com sucesso!', 'success');
+      setPlayerName('');
+      setPlayerRating('');
+      setEditingPlayer(null);
+      setModalVisible(false);
+      fetchPlayers();
     } catch (error) {
-      console.error('Erro ao atualizar jogador:', error);
+      console.error('❌ Players: Erro ao atualizar jogador:', error);
       showToast('Erro ao atualizar jogador', 'error');
     } finally {
       setLoading(false);
@@ -283,7 +321,13 @@ export default function PlayersScreen() {
 
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.primary }]}
-          onPress={() => setModalVisible(true)}
+          onPress={() => {
+            console.log('➕ Players: Botão adicionar clicado');
+            setEditingPlayer(null);
+            setPlayerName('');
+            setPlayerRating('');
+            setModalVisible(true);
+          }}
         >
           <Text style={styles.addButtonText}>{t('players.addPlayer')}</Text>
         </TouchableOpacity>

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated, Modal, Alert } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X } from 'lucide-react-native';
+import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
 import { AdminModal } from '../../components/AdminModal';
 import { useClusterSettings } from '../../hooks/useClusterSettings';
+import { supabase } from '../../lib/supabase';
 
 // Cores predefinidas para as equipes
 const TEAM_COLORS = [
@@ -21,7 +22,7 @@ const TEAM_COLORS = [
 ];
 
 export default function SettingsScreen() {
-  const { signOut, isAdmin, clusterName } = useAuth();
+  const { signOut, isAdmin, clusterName, clusterDisplayName, session, refreshClusterDisplayName, updateClusterState, clearClusterState } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const { settings: clusterSettings, updateSettings, loading: settingsLoading } = useClusterSettings(clusterName);
@@ -37,6 +38,12 @@ export default function SettingsScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
+  
+  // Estados para renomear cluster
+  const [isRenamingCluster, setIsRenamingCluster] = useState(false);
+  const [newClusterName, setNewClusterName] = useState('');
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
@@ -99,6 +106,168 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleRenameCluster = async () => {
+    if (!newClusterName.trim()) {
+      showToast('Por favor, insira um novo nome para o cluster', 'error');
+      return;
+    }
+
+    if (!clusterName) {
+      showToast('Cluster não identificado', 'error');
+      return;
+    }
+
+    try {
+      // Atualizar o nome de display do cluster (coluna 'nome_cluster')
+      const { error } = await supabase
+        .from('clusters')
+        .update({ nome_cluster: newClusterName.trim() })
+        .eq('cluster_uuid', clusterName);
+
+      if (error) throw error;
+
+      showToast('Nome do cluster atualizado com sucesso!', 'success');
+      setIsRenamingCluster(false);
+      setNewClusterName('');
+      
+      // Atualiza o nome do cluster no contexto de auth (atualiza o Header)
+      await refreshClusterDisplayName();
+      
+      // Pequena pausa para garantir que o nome foi atualizado
+      setTimeout(() => {
+        Alert.alert(
+          'Nome Atualizado',
+          'O nome do cluster foi atualizado com sucesso!',
+          [{ text: 'OK' }]
+        );
+      }, 300);
+    } catch (error: any) {
+      console.error('Erro ao renomear cluster:', error);
+      showToast(error.message || 'Erro ao atualizar nome do cluster', 'error');
+    }
+  };
+
+  const handleLeaveCluster = () => {
+    setShowLeaveConfirmation(true);
+  };
+
+  const confirmLeaveCluster = async () => {
+    console.log('� confirmLeaveCluster - Saindo do cluster...');
+    console.log('� clusterName:', clusterName);
+    console.log('� user_id:', session?.user.id);
+    
+    try {
+      if (!clusterName || !session?.user.id) {
+        console.error('❌ ERRO: clusterName ou user_id vazio!');
+        showToast('Informações do cluster não disponíveis', 'error');
+        return;
+      }
+
+      console.log('🗑️ Removendo você do cluster_members...');
+      const { error: memberError } = await supabase
+        .from('cluster_members')
+        .delete()
+        .eq('cluster_uuid', clusterName)
+        .eq('user_id', session.user.id);
+
+      if (memberError) {
+        console.error('❌ Erro ao sair do cluster:', memberError);
+        throw memberError;
+      }
+
+      console.log('✅ Você saiu do cluster com sucesso!');
+      showToast('Saiu do cluster com sucesso', 'success');
+      setShowLeaveConfirmation(false);
+      setShowAdminSettingsModal(false);
+      
+      // CRÍTICO: Limpar estados IMEDIATAMENTE (síncrono)
+      console.log('🧹 Limpando estados do cluster IMEDIATAMENTE...');
+      clearClusterState();
+      
+      // Depois, buscar do banco (assíncrono) para confirmar
+      console.log('🔄 Confirmando com banco de dados...');
+      await updateClusterState();
+      
+      // Pequena espera para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Fazer logout para limpar completamente a sessão
+      console.log('🚪 Fazendo logout após sair do cluster...');
+      await signOut();
+    } catch (error: any) {
+      console.error('💥 ERRO ao sair do cluster:', error);
+      showToast(error.message || 'Erro ao sair do cluster', 'error');
+      setShowLeaveConfirmation(false);
+    }
+  };
+
+  const handleDeleteCluster = () => {
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDeleteCluster = async () => {
+    console.warn('� confirmDeleteCluster - Apagando cluster completo!');
+    console.warn('🔴 clusterName:', clusterName);
+    console.warn('🔴 isAdmin:', isAdmin);
+    
+    try {
+      if (!clusterName) {
+        console.error('❌ ERRO: clusterName está vazio!');
+        showToast('Cluster não identificado', 'error');
+        return;
+      }
+
+      if (!isAdmin) {
+        showToast('Apenas administradores podem apagar o cluster', 'error');
+        return;
+      }
+
+      console.warn('🗑️ Eliminando cluster completo...');
+
+      // IMPORTANTE: Por causa das foreign keys com ON DELETE CASCADE,
+      // ao apagar o cluster, automaticamente apaga:
+      // - Todos os registos em cluster_members
+      // - Todos os jogadores
+      // - Todos os jogos
+      // - Todas as finanças
+      // - Etc.
+      
+      const { error: clusterError } = await supabase
+        .from('clusters')
+        .delete()
+        .eq('cluster_uuid', clusterName);
+
+      if (clusterError) {
+        console.error('❌ Erro ao eliminar cluster:', clusterError);
+        throw clusterError;
+      }
+
+      console.warn('✅ Cluster e todos os dados eliminados com sucesso!');
+      showToast('Cluster eliminado com sucesso', 'success');
+      setShowDeleteConfirmation(false);
+      setShowAdminSettingsModal(false);
+      
+      // CRÍTICO: Limpar estados IMEDIATAMENTE (síncrono)
+      console.log('🧹 Limpando estados do cluster IMEDIATAMENTE...');
+      clearClusterState();
+      
+      // Depois, buscar do banco (assíncrono) para confirmar
+      console.log('🔄 Confirmando com banco de dados...');
+      await updateClusterState();
+      
+      // Pequena espera para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Fazer logout para limpar completamente a sessão
+      console.log('🚪 Fazendo logout após eliminar cluster...');
+      await signOut();
+    } catch (error: any) {
+      console.error('💥 ERRO ao eliminar cluster:', error);
+      showToast(error.message || 'Erro ao eliminar cluster', 'error');
+      setShowDeleteConfirmation(false);
+    }
+  };
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToastConfig({
       visible: true,
@@ -158,32 +327,30 @@ export default function SettingsScreen() {
           <ChevronRight size={24} color={theme.text} />
         </TouchableOpacity>
 
-        {isAdmin && (
-          <>
-            {/* Botão: Personalizar Sorteio */}
-            <TouchableOpacity
-              style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-              onPress={() => setShowDrawModal(true)}
-            >
-              <View style={styles.menuButtonContent}>
-                <SettingsIcon size={24} color={theme.primary} />
-                <Text style={[styles.menuButtonText, { color: theme.text }]}>Personalizar Sorteio</Text>
-              </View>
-              <ChevronRight size={24} color={theme.text} />
-            </TouchableOpacity>
+        {/* Botão: Administração - Disponível para TODOS */}
+        <TouchableOpacity
+          style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+          onPress={() => setShowAdminSettingsModal(true)}
+        >
+          <View style={styles.menuButtonContent}>
+            <Lock size={24} color={theme.primary} />
+            <Text style={[styles.menuButtonText, { color: theme.text }]}>Administração</Text>
+          </View>
+          <ChevronRight size={24} color={theme.text} />
+        </TouchableOpacity>
 
-            {/* Botão: Administração */}
-            <TouchableOpacity
-              style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-              onPress={() => setShowAdminSettingsModal(true)}
-            >
-              <View style={styles.menuButtonContent}>
-                <Lock size={24} color={theme.primary} />
-                <Text style={[styles.menuButtonText, { color: theme.text }]}>Administração</Text>
-              </View>
-              <ChevronRight size={24} color={theme.text} />
-            </TouchableOpacity>
-          </>
+        {/* Botão: Personalizar Sorteio - APENAS ADMIN */}
+        {isAdmin && (
+          <TouchableOpacity
+            style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            onPress={() => setShowDrawModal(true)}
+          >
+            <View style={styles.menuButtonContent}>
+              <SettingsIcon size={24} color={theme.primary} />
+              <Text style={[styles.menuButtonText, { color: theme.text }]}>Personalizar Sorteio</Text>
+            </View>
+            <ChevronRight size={24} color={theme.text} />
+          </TouchableOpacity>
         )}
 
         <TouchableOpacity 
@@ -430,6 +597,11 @@ export default function SettingsScreen() {
         animationType="slide"
         transparent={true}
         onRequestClose={() => setShowAdminSettingsModal(false)}
+        onShow={() => {
+          console.warn('🔐 Modal de Administração foi aberta');
+          console.warn('🔐 isAdmin:', isAdmin);
+          console.warn('🔐 clusterName:', clusterName);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
@@ -440,17 +612,220 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
-              <TouchableOpacity
-                style={[styles.adminButton, { backgroundColor: theme.primary }]}
-                onPress={() => {
-                  setShowAdminSettingsModal(false);
-                  setShowAdminModal(true);
-                }}
-              >
-                <Shield size={20} color="#fff" />
-                <Text style={styles.adminButtonText}>Definir Novo Admin</Text>
-              </TouchableOpacity>
+              {/* Definir Novo Admin - APENAS ADMIN */}
+              {isAdmin && (
+                <TouchableOpacity
+                  style={[styles.adminButton, { backgroundColor: theme.primary, marginBottom: 16 }]}
+                  onPress={() => {
+                    setShowAdminSettingsModal(false);
+                    setShowAdminModal(true);
+                  }}
+                >
+                  <Shield size={20} color="#fff" />
+                  <Text style={styles.adminButtonText}>Definir Novo Admin</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Renomear Cluster - APENAS ADMIN */}
+              {isAdmin && (
+                <View style={[styles.adminSection, { borderColor: theme.border }]}>
+                  <View style={styles.adminSectionHeader}>
+                    <Edit2 size={20} color={theme.primary} />
+                    <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Nome do Cluster</Text>
+                  </View>
+                  {isRenamingCluster ? (
+                    <View>
+                      <Text style={[styles.adminLabel, { color: theme.text }]}>Nome Atual: {clusterDisplayName}</Text>
+                      <TextInput
+                        style={[styles.clusterInput, { 
+                          backgroundColor: theme.inputBackground,
+                          color: theme.text,
+                          borderColor: theme.border
+                        }]}
+                        value={newClusterName}
+                        onChangeText={setNewClusterName}
+                        placeholder="Novo nome de exibição"
+                        placeholderTextColor={theme.placeholderText}
+                      />
+                      <View style={styles.adminButtonRow}>
+                        <TouchableOpacity
+                          style={[styles.adminSecondaryButton, { borderColor: theme.border }]}
+                          onPress={() => {
+                            setIsRenamingCluster(false);
+                            setNewClusterName('');
+                          }}
+                        >
+                          <Text style={[styles.adminSecondaryButtonText, { color: theme.text }]}>Cancelar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.adminPrimaryButton, { backgroundColor: theme.primary }]}
+                          onPress={handleRenameCluster}
+                        >
+                          <Text style={styles.adminPrimaryButtonText}>Guardar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.adminSecondaryButton, { borderColor: theme.border }]}
+                      onPress={() => setIsRenamingCluster(true)}
+                    >
+                      <Edit2 size={18} color={theme.text} />
+                      <Text style={[styles.adminSecondaryButtonText, { color: theme.text }]}>Alterar Nome</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* Sair do Cluster - Disponível para TODOS */}
+              <View style={[styles.adminSection, { borderColor: theme.border }]}>
+                <View style={styles.adminSectionHeader}>
+                  <AlertCircle size={20} color="#f39c12" />
+                  <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Sair do Cluster</Text>
+                </View>
+                <Text style={[styles.adminWarning, { color: theme.text }]}>
+                  Ao sair do cluster, você será removido da lista de membros. Os dados do cluster serão mantidos.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.adminWarningButton, { backgroundColor: '#f39c12' }]}
+                  onPress={handleLeaveCluster}
+                >
+                  <AlertCircle size={18} color="#fff" />
+                  <Text style={styles.adminDangerButtonText}>Sair do Cluster</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Eliminar Cluster - APENAS ADMIN */}
+              {isAdmin && (
+                <View style={[styles.adminSection, { borderColor: theme.border }]}>
+                  <View style={styles.adminSectionHeader}>
+                    <Trash2 size={20} color="#e74c3c" />
+                    <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Eliminar Cluster</Text>
+                  </View>
+                  <Text style={[styles.adminWarning, { color: '#e74c3c' }]}>
+                    ⚠️ ATENÇÃO: Esta ação é PERMANENTE e irá eliminar TODOS os dados do cluster (jogadores, jogos, finanças, etc.) e TODOS os membros serão removidos.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.adminDangerButton, { backgroundColor: '#e74c3c' }]}
+                    onPress={handleDeleteCluster}
+                  >
+                    <Trash2 size={18} color="#fff" />
+                    <Text style={styles.adminDangerButtonText}>Eliminar Cluster Permanentemente</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Confirmação de SAIR do Cluster */}
+      <Modal
+        visible={showLeaveConfirmation}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLeaveConfirmation(false)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View style={[styles.confirmationModal, { backgroundColor: theme.background }]}>
+            <View style={styles.confirmationHeader}>
+              <AlertCircle size={48} color="#f39c12" />
+              <Text style={[styles.confirmationTitle, { color: theme.text }]}>
+                Sair do Cluster
+              </Text>
+            </View>
+            
+            <ScrollView style={styles.confirmationBody}>
+              <Text style={[styles.confirmationText, { color: theme.text }]}>
+                Tem a certeza que deseja sair do cluster "{clusterDisplayName || clusterName}"?
+              </Text>
+              
+              <Text style={[styles.confirmationWarning, { color: theme.text }]}>
+                Esta ação irá:
+              </Text>
+              
+              <View style={styles.confirmationList}>
+                <Text style={[styles.confirmationListItem, { color: theme.text }]}>• Remover você da lista de membros</Text>
+                <Text style={[styles.confirmationListItem, { color: theme.text }]}>• Fazer logout automaticamente</Text>
+              </View>
+              
+              <Text style={[styles.confirmationFinalWarning, { color: '#2ecc71' }]}>
+                ℹ️ Os dados do cluster (jogadores, jogos, etc.) serão mantidos
+              </Text>
+            </ScrollView>
+            
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={[styles.confirmationCancelButton, { borderColor: theme.border }]}
+                onPress={() => setShowLeaveConfirmation(false)}
+              >
+                <Text style={[styles.confirmationCancelText, { color: theme.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.confirmationDeleteButton, { backgroundColor: '#f39c12' }]}
+                onPress={confirmLeaveCluster}
+              >
+                <Text style={styles.confirmationDeleteText}>Confirmar Saída</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Confirmação de ELIMINAR Cluster */}
+      <Modal
+        visible={showDeleteConfirmation}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirmation(false)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View style={[styles.confirmationModal, { backgroundColor: theme.background }]}>
+            <View style={styles.confirmationHeader}>
+              <AlertCircle size={48} color="#e74c3c" />
+              <Text style={[styles.confirmationTitle, { color: theme.text }]}>
+                Eliminar Cluster Permanentemente
+              </Text>
+            </View>
+            
+            <ScrollView style={styles.confirmationBody}>
+              <Text style={[styles.confirmationText, { color: theme.text }]}>
+                Tem a certeza que deseja ELIMINAR PERMANENTEMENTE o cluster "{clusterDisplayName || clusterName}"?
+              </Text>
+              
+              <Text style={[styles.confirmationWarning, { color: '#e74c3c' }]}>
+                ⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL e irá:
+              </Text>
+              
+              <View style={styles.confirmationList}>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar TODOS os jogadores</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar TODOS os jogos</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar TODAS as finanças</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Remover TODOS os membros</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar o cluster completamente</Text>
+              </View>
+              
+              <Text style={[styles.confirmationFinalWarning, { color: '#e74c3c' }]}>
+                🚨 ESTA AÇÃO NÃO PODE SER DESFEITA!
+              </Text>
+            </ScrollView>
+            
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={[styles.confirmationCancelButton, { borderColor: theme.border }]}
+                onPress={() => setShowDeleteConfirmation(false)}
+              >
+                <Text style={[styles.confirmationCancelText, { color: theme.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.confirmationDeleteButton}
+                onPress={confirmDeleteCluster}
+              >
+                <Text style={styles.confirmationDeleteText}>Eliminar Permanentemente</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -678,6 +1053,202 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   adminButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  adminSection: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+  },
+  adminSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  adminSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  adminLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: 8,
+  },
+  clusterInput: {
+    height: 45,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  adminButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adminSecondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
+  },
+  adminSecondaryButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  adminPrimaryButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  adminPrimaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  adminWarning: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  adminWarningButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+    minHeight: 50,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  adminDangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+    minHeight: 50,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  adminDangerButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  // Confirmation Modal Styles
+  confirmationOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmationModal: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.34,
+    shadowRadius: 6.27,
+  },
+  confirmationHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  confirmationTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
+  },
+  confirmationBody: {
+    maxHeight: 300,
+  },
+  confirmationText: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 24,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  confirmationWarning: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  confirmationList: {
+    marginLeft: 8,
+    marginBottom: 16,
+  },
+  confirmationListItem: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  confirmationFinalWarning: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  confirmationButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  confirmationCancelButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmationCancelText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  confirmationDeleteButton: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#e74c3c',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confirmationDeleteText: {
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
