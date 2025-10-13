@@ -324,31 +324,19 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       setLoading(true);
       setShowNameChangeModal(false);
       
-      console.log('✅ Usuário optou por continuar com o nome atual:', currentPlayerName);
+      console.log('✅ Cluster: Usuário optou por continuar com o nome atual:', currentPlayerName);
+      console.log('🔗 Cluster: Associando user_id ao jogador existente...');
       
-      // Criar jogador com o nome atual
-      const { error: playerError } = await supabase
-        .from('jogadores')
-        .insert({
-          nome: currentPlayerName,
-          cluster_uuid: pendingClusterUuid,
-          rating: 1000,
-          numero_jogos: 0,
-          numero_vitorias: 0,
-          empates: 0,
-          derrotas: 0,
-          golos_marcados: 0
-        });
-
-      if (playerError) {
-        console.error('❌ Erro ao criar jogador:', playerError);
-        // Reverter a adição ao cluster
-        await supabase.from('cluster_members').delete().eq('cluster_uuid', pendingClusterUuid).eq('user_id', userId);
-        setError('Erro ao criar jogador. Por favor, tente novamente.');
-        return;
-      }
-
-      console.log('✅ Jogador criado com sucesso');
+      // IMPORTANTE: NÃO criar novo jogador!
+      // Em vez disso, o jogador com este nome já existe no cluster.
+      // Não é necessário fazer nada com a tabela jogadores porque:
+      // 1. O jogador já existe com o nome escolhido
+      // 2. A tabela jogadores não tem user_id (é compartilhada)
+      // 3. O cluster_members já foi criado anteriormente (linha 220-227)
+      
+      console.log('✅ Cluster: Jogador existente será usado (sem criar duplicado)');
+      console.log('✅ Cluster: Associação completa - user_id:', userId, 'nome:', currentPlayerName);
+      
       await updateClusterState();
       setPendingClusterUuid(null);
       onComplete();

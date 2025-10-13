@@ -205,34 +205,48 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           </View>
 
           <ScrollView style={styles.scrollView}>
-            {playerPayments.map((player, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.playerRow,
-                  { 
-                    backgroundColor: theme.cardBackground,
-                    borderColor: theme.border,
-                    opacity: isAdmin ? 1 : 0.6
-                  }
-                ]}
-                onPress={() => isAdmin && togglePayment(player.nome)}
-                disabled={!isAdmin}
-              >
-                <Text style={[styles.playerName, { color: theme.text }]}>
-                  {player.nome}
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={[styles.loadingText, { color: theme.text }]}>
+                  A carregar jogadores...
                 </Text>
-                <View style={[
-                  styles.checkbox,
-                  {
-                    backgroundColor: player.pago ? theme.primary : 'transparent',
-                    borderColor: player.pago ? theme.primary : theme.border
-                  }
-                ]}>
-                  {player.pago && <Check size={18} color="#ffffff" />}
-                </View>
-              </TouchableOpacity>
-            ))}
+              </View>
+            ) : playerPayments && playerPayments.length > 0 ? (
+              playerPayments.map((player, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.playerRow,
+                    { 
+                      backgroundColor: theme.cardBackground,
+                      borderColor: theme.border,
+                      opacity: isAdmin ? 1 : 0.6
+                    }
+                  ]}
+                  onPress={() => isAdmin && togglePayment(player.nome)}
+                  disabled={!isAdmin}
+                >
+                  <Text style={[styles.playerName, { color: theme.text }]}>
+                    {player.nome}
+                  </Text>
+                  <View style={[
+                    styles.checkbox,
+                    {
+                      backgroundColor: player.pago ? theme.primary : 'transparent',
+                      borderColor: player.pago ? theme.primary : theme.border
+                    }
+                  ]}>
+                    {player.pago && <Check size={18} color="#ffffff" />}
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: theme.text }]}>
+                  Nenhum jogador encontrado
+                </Text>
+              </View>
+            )}
           </ScrollView>
 
           {isAdmin && (
@@ -348,5 +362,25 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    opacity: 0.7,
+  },
+  emptyContainer: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    opacity: 0.7,
   },
 });

@@ -12,10 +12,6 @@ type Player = {
   nome: string;
   rating: number;
   visivel: boolean;
-  jogos: number;
-  vitorias: number;
-  derrotas: number;
-  empates: number;
 };
 
 export default function PlayersScreen() {
@@ -209,11 +205,6 @@ export default function PlayersScreen() {
             cluster_uuid: clusterName,
             nome: nome,
             rating: rating,
-            numero_vitorias: 0,
-            numero_jogos: 0,
-            empates: 0,
-            derrotas: 0,
-            golos_marcados: 0,
             visivel: true
           }
         ])

@@ -253,10 +253,12 @@ function RootLayoutNav() {
           if (hasValidCluster) {
             console.log('✅ validateAuth - Utilizador com cluster, escondendo modal');
             setShowClusterModal(false); // Garante que o modal está escondido
+            setShouldRedirectToAuth(false); // CRÍTICO: Garante que não redireciona
             await updateClusterState();
           } else {
             console.log('📋 validateAuth - Utilizador sem cluster, mostrando ClusterModal');
             setShowClusterModal(true); // Mostra o modal sempre que não há cluster
+            setShouldRedirectToAuth(false); // CRÍTICO: Não deve redirecionar para auth, apenas mostrar modal
           }
         } else {
           console.log('🚫 validateAuth - Não autenticado');

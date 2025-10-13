@@ -1,0 +1,68 @@
+tipo,nome,detalhe
+TABELA,calotes_jogo,
+TABELA,cluster_members,
+TABELA,clusters,
+TABELA,configuracoes_cluster,
+TABELA,golos_por_jogador,
+TABELA,jogadores,
+TABELA,resultados_jogos,
+COLUNA,calotes_jogo.cluster_id,text | NULL=NO
+COLUNA,calotes_jogo.id_jogo,uuid | NULL=NO
+COLUNA,calotes_jogo.nome_jogador,text | NULL=NO
+COLUNA,calotes_jogo.pago,boolean | NULL=YES
+COLUNA,cluster_members.admin,boolean | NULL=NO | DEFAULT=false
+COLUNA,cluster_members.cluster_id,text | NULL=NO
+COLUNA,cluster_members.created_at,timestamp with time zone | NULL=YES | DEFAULT=now()
+COLUNA,cluster_members.nome,text | NULL=NO
+COLUNA,cluster_members.updated_at,timestamp with time zone | NULL=YES | DEFAULT=now()
+COLUNA,cluster_members.user_id,uuid | NULL=NO
+COLUNA,clusters.cluster_id,text | NULL=NO
+COLUNA,clusters.configuracoes,jsonb | NULL=YES | DEFAULT='{}'::jsonb
+COLUNA,clusters.created_at,timestamp with time zone | NULL=YES | DEFAULT=now()
+COLUNA,clusters.created_by,uuid | NULL=YES
+COLUNA,clusters.nome_cluster,text | NULL=YES
+COLUNA,configuracoes_cluster.cluster_id,text | NULL=NO
+COLUNA,configuracoes_cluster.team_a_color,text | NULL=YES | DEFAULT='#FFD700'::text
+COLUNA,configuracoes_cluster.team_a_name,text | NULL=YES | DEFAULT='Equipa A'::text
+COLUNA,configuracoes_cluster.team_b_color,text | NULL=YES | DEFAULT='#1E90FF'::text
+COLUNA,configuracoes_cluster.team_b_name,text | NULL=YES | DEFAULT='Equipa B'::text
+COLUNA,golos_por_jogador.cluster_id,text | NULL=NO
+COLUNA,golos_por_jogador.id_jogo,uuid | NULL=NO
+COLUNA,golos_por_jogador.nome_jogador,text | NULL=NO
+COLUNA,golos_por_jogador.numero_golos,integer | NULL=NO | DEFAULT=0
+COLUNA,jogadores.cluster_id,text | NULL=NO
+COLUNA,jogadores.derrotas,integer | NULL=YES | DEFAULT=0
+COLUNA,jogadores.empates,integer | NULL=YES | DEFAULT=0
+COLUNA,jogadores.golos_marcados,integer | NULL=YES | DEFAULT=0
+COLUNA,jogadores.nome,text | NULL=NO
+COLUNA,jogadores.numero_jogos,integer | NULL=NO | DEFAULT=0
+COLUNA,jogadores.numero_vitorias,integer | NULL=NO | DEFAULT=0
+COLUNA,jogadores.rating,integer | NULL=NO | DEFAULT=0
+COLUNA,jogadores.total_jogos,integer | NULL=YES | DEFAULT=0
+COLUNA,jogadores.visivel,boolean | NULL=NO | DEFAULT=true
+COLUNA,jogadores.vitorias,integer | NULL=YES | DEFAULT=0
+COLUNA,resultados_jogos.cluster_id,text | NULL=NO
+COLUNA,resultados_jogos.data,date | NULL=NO
+COLUNA,resultados_jogos.id_jogo,uuid | NULL=NO | DEFAULT=gen_random_uuid()
+COLUNA,resultados_jogos.jogadores_equipa_a,text | NULL=NO
+COLUNA,resultados_jogos.jogadores_equipa_b,text | NULL=NO
+COLUNA,resultados_jogos.vencedor,character(1) | NULL=YES
+PK,calotes_jogo,"cluster_id, nome_jogador, id_jogo"
+PK,cluster_members,"user_id, cluster_id"
+PK,clusters,cluster_id
+PK,configuracoes_cluster,cluster_id
+PK,golos_por_jogador,"cluster_id, nome_jogador, id_jogo"
+PK,jogadores,"cluster_id, nome"
+PK,resultados_jogos,"cluster_id, id_jogo"
+FK,"calotes_jogo.cluster_id, id_jogo","REFERENCES resultados_jogos(cluster_id, id_jogo)"
+FK,"calotes_jogo.cluster_id, nome_jogador","REFERENCES jogadores(cluster_id, nome)"
+FK,cluster_members.cluster_id,REFERENCES clusters(cluster_id)
+FK,"golos_por_jogador.cluster_id, id_jogo","REFERENCES resultados_jogos(cluster_id, id_jogo)"
+FK,"golos_por_jogador.cluster_id, nome_jogador","REFERENCES jogadores(cluster_id, nome)"
+COUNT,calotes_jogo,43 registros
+COUNT,cluster_members,5 registros
+COUNT,clusters,2 registros
+COUNT,configuracoes_cluster,1 registros
+COUNT,golos_por_jogador,16 registros
+COUNT,jogadores,12 registros
+COUNT,resultados_jogos,12 registros

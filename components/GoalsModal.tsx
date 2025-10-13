@@ -19,10 +19,69 @@ type GoalsModalProps = {
   clusterId: string;
 };
 
+type PlayerRowProps = {
+  player: PlayerGoals;
+  theme: any;
+  loading: boolean;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  onChangeText: (value: string) => void;
+  onSave: () => void;
+};
+
+function PlayerRow({ player, theme, loading, onIncrement, onDecrement, onChangeText, onSave }: PlayerRowProps) {
+  return (
+    <View style={styles.playerRow}>
+      <View style={styles.playerInfo}>
+        <Text style={[styles.playerName, { color: theme.text }]}>{player.nome}</Text>
+      </View>
+      <View style={styles.goalsInputContainer}>
+        <View style={styles.inputWithArrows}>
+          <TouchableOpacity
+            style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            onPress={onDecrement}
+            disabled={loading}
+          >
+            <ChevronDown size={20} color={theme.text} />
+          </TouchableOpacity>
+          <TextInput
+            style={[styles.goalsInput, { 
+              backgroundColor: theme.inputBackground,
+              color: theme.text,
+              borderColor: theme.border
+            }]}
+            value={player.golos}
+            onChangeText={onChangeText}
+            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor={theme.placeholderText}
+            maxLength={2}
+          />
+          <TouchableOpacity
+            style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+            onPress={onIncrement}
+            disabled={loading}
+          >
+            <ChevronUp size={20} color={theme.text} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+          onPress={onSave}
+          disabled={loading || !player.golos}
+        >
+          <Text style={styles.saveButtonText}>Gravar</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalProps) {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
-  const [playerGoals, setPlayerGoals] = useState<PlayerGoals[]>([]);
+  const [equipaAPlayers, setEquipaAPlayers] = useState<PlayerGoals[]>([]);
+  const [equipaBPlayers, setEquipaBPlayers] = useState<PlayerGoals[]>([]);
   const [loading, setLoading] = useState(false);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
@@ -38,7 +97,8 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     if (visible) {
       loadPlayers();
     } else {
-      setPlayerGoals([]);
+      setEquipaAPlayers([]);
+      setEquipaBPlayers([]);
     }
   }, [visible, gameId, clusterId]);
 
@@ -73,21 +133,21 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
       const jogadoresEquipaA = gameData.jogadores_equipa_a.split(', ');
       const jogadoresEquipaB = gameData.jogadores_equipa_b.split(', ');
 
-      // Criar a lista de jogadores com suas respectivas equipas e golos
-      const playersList = [
-        ...jogadoresEquipaA.map((nome: string) => ({ 
-          nome, 
-          equipa: 'A', 
-          golos: goalsMap.get(nome)?.toString() || '0' 
-        })),
-        ...jogadoresEquipaB.map((nome: string) => ({ 
-          nome, 
-          equipa: 'B', 
-          golos: goalsMap.get(nome)?.toString() || '0' 
-        }))
-      ];
+      // Criar as listas separadas por equipa
+      const playersA = jogadoresEquipaA.map((nome: string) => ({ 
+        nome, 
+        equipa: 'A', 
+        golos: goalsMap.get(nome)?.toString() || '0' 
+      }));
 
-      setPlayerGoals(playersList);
+      const playersB = jogadoresEquipaB.map((nome: string) => ({ 
+        nome, 
+        equipa: 'B', 
+        golos: goalsMap.get(nome)?.toString() || '0' 
+      }));
+
+      setEquipaAPlayers(playersA);
+      setEquipaBPlayers(playersB);
     } catch (error) {
       console.error('Erro ao carregar jogadores:', error);
       showToast('Erro ao carregar jogadores', 'error');
@@ -108,8 +168,9 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     setToastConfig(prev => ({ ...prev, visible: false }));
   };
 
-  const incrementGoals = (playerName: string) => {
-    setPlayerGoals(prev => 
+  const incrementGoals = (playerName: string, equipa: string) => {
+    const setter = equipa === 'A' ? setEquipaAPlayers : setEquipaBPlayers;
+    setter(prev => 
       prev.map(p => {
         if (p.nome === playerName) {
           const currentGoals = parseInt(p.golos) || 0;
@@ -120,8 +181,9 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     );
   };
 
-  const decrementGoals = (playerName: string) => {
-    setPlayerGoals(prev => 
+  const decrementGoals = (playerName: string, equipa: string) => {
+    const setter = equipa === 'A' ? setEquipaAPlayers : setEquipaBPlayers;
+    setter(prev => 
       prev.map(p => {
         if (p.nome === playerName) {
           const currentGoals = parseInt(p.golos) || 0;
@@ -133,7 +195,9 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
   };
 
   const handleSaveGoals = async (player: PlayerGoals) => {
-    if (!player.golos || isNaN(Number(player.golos))) {
+    const numGolos = Number(player.golos);
+    
+    if (isNaN(numGolos) || numGolos < 0) {
       showToast('Por favor, insira um número válido de golos', 'error');
       return;
     }
@@ -147,17 +211,16 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
             cluster_uuid: clusterId,
             nome_jogador: player.nome,
             id_jogo: gameId,
-            numero_golos: Number(player.golos)
+            numero_golos: numGolos
           },
           {
-            onConflict: 'cluster_uuid,nome_jogador,id_jogo'
+            onConflict: 'id_jogo,cluster_uuid,nome_jogador'
           }
         );
 
       if (error) throw error;
 
       showToast('Golos registados com sucesso', 'success');
-      // Recarrega a lista após salvar
       await loadPlayers();
     } catch (error) {
       console.error('Erro ao registrar golos:', error);
@@ -186,61 +249,60 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
           <ScrollView style={styles.playersList}>
             {loading ? (
               <Text style={[styles.loadingText, { color: theme.text }]}>Carregando jogadores...</Text>
-            ) : playerGoals.length === 0 ? (
+            ) : equipaAPlayers.length === 0 && equipaBPlayers.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogador encontrado</Text>
             ) : (
-              playerGoals.map((player, index) => (
-                <View key={index} style={styles.playerRow}>
-                  <View style={styles.playerInfo}>
-                    <Text style={[styles.playerName, { color: theme.text }]}>{player.nome}</Text>
-                    <Text style={[styles.teamName, { color: theme.secondary }]}>{player.equipa}</Text>
-                  </View>
-                  <View style={styles.goalsInputContainer}>
-                    <View style={styles.inputWithArrows}>
-                      <TouchableOpacity
-                        style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                        onPress={() => decrementGoals(player.nome)}
-                        disabled={loading}
-                      >
-                        <ChevronDown size={20} color={theme.text} />
-                      </TouchableOpacity>
-                      <TextInput
-                        style={[styles.goalsInput, { 
-                          backgroundColor: theme.inputBackground,
-                          color: theme.text,
-                          borderColor: theme.border
-                        }]}
-                        value={player.golos}
+              <>
+                {/* Equipa A */}
+                {equipaAPlayers.length > 0 && (
+                  <View style={styles.teamSection}>
+                    <Text style={[styles.teamHeader, { color: theme.text }]}>Equipa A</Text>
+                    {equipaAPlayers.map((player, index) => (
+                      <PlayerRow 
+                        key={`A-${index}`}
+                        player={player}
+                        theme={theme}
+                        loading={loading}
+                        onIncrement={() => incrementGoals(player.nome, 'A')}
+                        onDecrement={() => decrementGoals(player.nome, 'A')}
                         onChangeText={(value) => {
                           if (/^\d*$/.test(value)) {
-                            setPlayerGoals(prev => 
+                            setEquipaAPlayers(prev => 
                               prev.map(p => p.nome === player.nome ? { ...p, golos: value } : p)
                             );
                           }
                         }}
-                        keyboardType="numeric"
-                        placeholder="0"
-                        placeholderTextColor={theme.placeholderText}
-                        maxLength={2}
+                        onSave={() => handleSaveGoals(player)}
                       />
-                      <TouchableOpacity
-                        style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                        onPress={() => incrementGoals(player.nome)}
-                        disabled={loading}
-                      >
-                        <ChevronUp size={20} color={theme.text} />
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.saveButton, { backgroundColor: theme.primary }]}
-                      onPress={() => handleSaveGoals(player)}
-                      disabled={loading || !player.golos}
-                    >
-                      <Text style={styles.saveButtonText}>Gravar</Text>
-                    </TouchableOpacity>
+                    ))}
                   </View>
-                </View>
-              ))
+                )}
+
+                {/* Equipa B */}
+                {equipaBPlayers.length > 0 && (
+                  <View style={styles.teamSection}>
+                    <Text style={[styles.teamHeader, { color: theme.text }]}>Equipa B</Text>
+                    {equipaBPlayers.map((player, index) => (
+                      <PlayerRow 
+                        key={`B-${index}`}
+                        player={player}
+                        theme={theme}
+                        loading={loading}
+                        onIncrement={() => incrementGoals(player.nome, 'B')}
+                        onDecrement={() => decrementGoals(player.nome, 'B')}
+                        onChangeText={(value) => {
+                          if (/^\d*$/.test(value)) {
+                            setEquipaBPlayers(prev => 
+                              prev.map(p => p.nome === player.nome ? { ...p, golos: value } : p)
+                            );
+                          }
+                        }}
+                        onSave={() => handleSaveGoals(player)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </>
             )}
           </ScrollView>
 
@@ -355,5 +417,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_500Medium',
     marginTop: 20,
+  },
+  teamSection: {
+    marginBottom: 24,
+  },
+  teamHeader: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#3498db',
   },
 });
