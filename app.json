@@ -5,6 +5,29 @@
     "version": "1.0.0",
     "scheme": "futapp",
     "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/boot.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a1a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bmoreiraribeiro.fut"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#1a1a1a"
+      },
+      "package": "com.bmoreiraribeiro.fut",
+      "newArchEnabled": false
+    },
     "web": {
       "bundler": "metro",
       "output": "single",
@@ -21,6 +44,9 @@
         "projectId": "7d615b97-7861-42e6-8f48-f11c08b2acb0"
       }
     },
-    "owner": "bmoreiraribeiro"
+    "owner": "bmoreiraribeiro",
+    "plugins": [
+      "expo-router"
+    ]
   }
 }

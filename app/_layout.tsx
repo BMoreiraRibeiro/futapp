@@ -84,8 +84,9 @@ function CustomSplashScreen({ message }: { message?: string }) {
           },
         ]}>
         <Image 
-          source={require('../assets/images/soccer_ball.png')}
+          source={require('../assets/images/icon.png')}
           style={styles.splashIcon}
+          resizeMode="contain"
         />
       </Animated.View>
       <Animated.Text style={[styles.splashText, { opacity }]}>
@@ -473,12 +474,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainer: {
-    marginBottom: 20,
+    marginBottom: 30,
   },
   splashIcon: {
-    width: 80,
-    height: 80,
-    tintColor: '#ffffff',
+    width: 120,
+    height: 120,
   },
   splashText: {
     color: '#ffffff',
@@ -490,5 +490,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
+    opacity: 0.8,
   },
 });

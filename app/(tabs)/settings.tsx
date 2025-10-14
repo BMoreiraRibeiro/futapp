@@ -45,6 +45,11 @@ export default function SettingsScreen() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   
+  // Estados para o perfil do jogador
+  const [playerName, setPlayerName] = useState('');
+  const [isEditingPlayerName, setIsEditingPlayerName] = useState(false);
+  const [tempPlayerName, setTempPlayerName] = useState('');
+  
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
   const [tempTeamAName, setTempTeamAName] = useState('Equipa A');
@@ -78,6 +83,45 @@ export default function SettingsScreen() {
       console.log('⚙️ Configurações carregadas:', clusterSettings);
     }
   }, [settingsLoading, settingsLoaded, clusterSettings]);
+
+  // Carregar nome do jogador
+  useEffect(() => {
+    const loadPlayerName = async () => {
+      console.log('🔄 Carregando nome do jogador...');
+      console.log('👤 User ID:', session?.user?.id);
+      console.log('🏢 Cluster UUID:', clusterName);
+      
+      if (!session?.user?.id || !clusterName) {
+        console.log('⚠️ Falta user_id ou clusterName, não carregando nome');
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabase
+          .from('cluster_members')
+          .select('nome')
+          .eq('user_id', session.user.id)
+          .eq('cluster_uuid', clusterName)
+          .single();
+
+        console.log('📊 Resultado da busca:', { data, error });
+
+        if (error) throw error;
+        
+        if (data?.nome) {
+          console.log('✅ Nome encontrado:', data.nome);
+          setPlayerName(data.nome);
+          setTempPlayerName(data.nome);
+        } else {
+          console.log('⚠️ Nome não definido na BD');
+        }
+      } catch (error) {
+        console.error('❌ Erro ao carregar nome do jogador:', error);
+      }
+    };
+
+    loadPlayerName();
+  }, [session, clusterName]);
 
   const saveAllSettings = async () => {
     if (!isAdmin) {
@@ -144,6 +188,176 @@ export default function SettingsScreen() {
     } catch (error: any) {
       console.error('Erro ao renomear cluster:', error);
       showToast(error.message || 'Erro ao atualizar nome do cluster', 'error');
+    }
+  };
+
+  const handleSavePlayerName = async () => {
+    console.log('🔄 handleSavePlayerName - Iniciando atualização do nome...');
+    console.log('📝 Nome atual:', playerName);
+    console.log('📝 Novo nome:', tempPlayerName.trim());
+    console.log('👤 User ID:', session?.user?.id);
+    console.log('🏢 Cluster UUID:', clusterName);
+    
+    if (!tempPlayerName.trim()) {
+      showToast('Por favor, insira um nome', 'error');
+      return;
+    }
+
+    if (!session?.user?.id || !clusterName) {
+      console.error('❌ Falta informação de sessão ou cluster');
+      showToast('Informações de sessão não disponíveis', 'error');
+      return;
+    }
+
+    const trimmedNewName = tempPlayerName.trim();
+    
+    // Se o nome não mudou, só fecha a edição
+    if (trimmedNewName === playerName) {
+      console.log('ℹ️ Nome não foi alterado');
+      setIsEditingPlayerName(false);
+      return;
+    }
+
+    try {
+      // 1. Verificar se o novo nome já existe em outro jogador
+      console.log('� Verificando se o novo nome já existe...');
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('jogadores')
+        .select('nome')
+        .eq('nome', trimmedNewName)
+        .eq('cluster_uuid', clusterName)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('❌ Erro ao verificar novo nome:', checkError);
+        throw checkError;
+      }
+
+      if (existingPlayer) {
+        console.warn('⚠️ Nome já existe noutro jogador');
+        showToast('Este nome já está em uso por outro jogador. Por favor, escolha outro.', 'error');
+        return;
+      }
+
+      console.log('✅ Nome disponível');
+
+      // 2. Atualizar o nome em cluster_members
+      console.log('🔄 Atualizando cluster_members...');
+      const { error: updateMemberError } = await supabase
+        .from('cluster_members')
+        .update({ nome: trimmedNewName })
+        .eq('cluster_uuid', clusterName)
+        .eq('user_id', session.user.id);
+
+      if (updateMemberError) {
+        console.error('❌ Erro ao atualizar cluster_members:', updateMemberError);
+        throw updateMemberError;
+      }
+
+      console.log('✅ Nome atualizado em cluster_members');
+
+      // 3. Atualizar o nome na tabela jogadores
+      console.log('🔄 Atualizando jogadores...');
+      const { error: updatePlayerError } = await supabase
+        .from('jogadores')
+        .update({ nome: trimmedNewName })
+        .eq('nome', playerName)
+        .eq('cluster_uuid', clusterName);
+
+      if (updatePlayerError) {
+        console.error('❌ Erro ao atualizar jogadores:', updatePlayerError);
+        
+        // Reverter mudança de nome em cluster_members
+        await supabase
+          .from('cluster_members')
+          .update({ nome: playerName })
+          .eq('cluster_uuid', clusterName)
+          .eq('user_id', session.user.id);
+        
+        throw updatePlayerError;
+      }
+
+      console.log('✅ Nome atualizado em jogadores');
+
+      // 4. Atualizar referências em golos_por_jogador
+      console.log('🔄 Atualizando golos_por_jogador...');
+      const { error: updateGolosError } = await supabase
+        .from('golos_por_jogador')
+        .update({ nome_jogador: trimmedNewName })
+        .eq('nome_jogador', playerName)
+        .eq('cluster_uuid', clusterName);
+
+      if (updateGolosError) {
+        console.error('⚠️ Erro ao atualizar golos_por_jogador:', updateGolosError);
+        // Não faz rollback aqui pois pode não ter jogos registrados
+      } else {
+        console.log('✅ Golos_por_jogador atualizado');
+      }
+
+      // 5. Atualizar referências em calotes_jogo
+      console.log('🔄 Atualizando calotes_jogo...');
+      const { error: updateCalotesError } = await supabase
+        .from('calotes_jogo')
+        .update({ nome_jogador: trimmedNewName })
+        .eq('nome_jogador', playerName)
+        .eq('cluster_uuid', clusterName);
+
+      if (updateCalotesError) {
+        console.error('⚠️ Erro ao atualizar calotes_jogo:', updateCalotesError);
+        // Não faz rollback aqui pois pode não ter jogos registrados
+      } else {
+        console.log('✅ Calotes_jogo atualizado');
+      }
+
+      // 6. Atualizar referências em resultados_jogos (nas strings de equipes)
+      console.log('🔄 Atualizando resultados_jogos...');
+      const { data: jogos, error: jogosError } = await supabase
+        .from('resultados_jogos')
+        .select('id_jogo, jogadores_equipa_a, jogadores_equipa_b')
+        .eq('cluster_uuid', clusterName);
+
+      if (!jogosError && jogos) {
+        for (const jogo of jogos) {
+          let updated = false;
+          let newEquipaA = jogo.jogadores_equipa_a;
+          let newEquipaB = jogo.jogadores_equipa_b;
+
+          // Substituir nas equipas (formato: "nome1, nome2, nome3")
+          if (jogo.jogadores_equipa_a && jogo.jogadores_equipa_a.includes(playerName)) {
+            const equipaA = jogo.jogadores_equipa_a.split(', ');
+            newEquipaA = equipaA.map((nome: string) => nome === playerName ? trimmedNewName : nome).join(', ');
+            updated = true;
+          }
+
+          if (jogo.jogadores_equipa_b && jogo.jogadores_equipa_b.includes(playerName)) {
+            const equipaB = jogo.jogadores_equipa_b.split(', ');
+            newEquipaB = equipaB.map((nome: string) => nome === playerName ? trimmedNewName : nome).join(', ');
+            updated = true;
+          }
+
+          if (updated) {
+            await supabase
+              .from('resultados_jogos')
+              .update({
+                jogadores_equipa_a: newEquipaA,
+                jogadores_equipa_b: newEquipaB
+              })
+              .eq('id_jogo', jogo.id_jogo)
+              .eq('cluster_uuid', clusterName);
+          }
+        }
+        console.log('✅ Resultados_jogos atualizado');
+      }
+
+      // 7. Atualizar estado local
+      setPlayerName(trimmedNewName);
+      setIsEditingPlayerName(false);
+      showToast('Nome atualizado com sucesso!', 'success');
+      console.log('✅ Nome atualizado com sucesso!');
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao atualizar nome do jogador:', error);
+      showToast(error.message || 'Erro ao atualizar nome', 'error');
     }
   };
 
@@ -405,19 +619,87 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
-              <View style={styles.themeRow}>
-                <View style={styles.themeInfo}>
-                  {isDarkMode ? <Moon size={24} color={theme.text} /> : <Sun size={24} color={theme.text} />}
-                  <Text style={[styles.themeText, { color: theme.text }]}>
-                    {isDarkMode ? t('settings.darkMode') : t('settings.lightMode')}
-                  </Text>
+              {/* Informações do Clube */}
+              <View style={[styles.profileSection, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.profileLabel, { color: theme.text }]}>Clube</Text>
+                <Text style={[styles.profileValue, { color: theme.primary }]}>
+                  {clusterDisplayName || 'Carregando...'}
+                </Text>
+              </View>
+
+              {/* Nome do Jogador */}
+              <View style={[styles.profileSection, { borderBottomColor: theme.border }]}>
+                <View style={styles.profileRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.profileLabel, { color: theme.text }]}>Meu Nome</Text>
+                    {isEditingPlayerName ? (
+                      <TextInput
+                        style={[
+                          styles.profileInput,
+                          { 
+                            color: theme.text,
+                            backgroundColor: theme.background,
+                            borderColor: theme.border
+                          }
+                        ]}
+                        value={tempPlayerName}
+                        onChangeText={setTempPlayerName}
+                        placeholder="Digite seu nome"
+                        placeholderTextColor={theme.text + '80'}
+                        autoFocus
+                      />
+                    ) : (
+                      <Text style={[styles.profileValue, { color: theme.text }]}>
+                        {playerName || 'Não definido'}
+                      </Text>
+                    )}
+                  </View>
+                  {isEditingPlayerName ? (
+                    <View style={styles.editActions}>
+                      <TouchableOpacity
+                        style={[styles.profileSaveButton, { backgroundColor: theme.primary }]}
+                        onPress={handleSavePlayerName}
+                      >
+                        <Save size={18} color="#ffffff" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.profileCancelButton, { backgroundColor: theme.error }]}
+                        onPress={() => {
+                          setIsEditingPlayerName(false);
+                          setTempPlayerName(playerName);
+                        }}
+                      >
+                        <X size={18} color="#ffffff" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.editButton, { backgroundColor: theme.secondary }]}
+                      onPress={() => setIsEditingPlayerName(true)}
+                    >
+                      <Edit2 size={18} color={theme.text} />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Switch
-                  value={isDarkMode}
-                  onValueChange={toggleTheme}
-                  trackColor={{ false: '#767577', true: theme.primary }}
-                  thumbColor={isDarkMode ? '#f4f3f4' : '#f4f3f4'}
-                />
+              </View>
+
+              {/* Tema */}
+              <View style={[styles.profileSection, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.profileLabel, { color: theme.text, marginBottom: 12 }]}>Tema</Text>
+                <View style={styles.themeRow}>
+                  <View style={styles.themeInfo}>
+                    {isDarkMode ? <Moon size={24} color={theme.text} /> : <Sun size={24} color={theme.text} />}
+                    <Text style={[styles.themeText, { color: theme.text }]}>
+                      {isDarkMode ? t('settings.darkMode') : t('settings.lightMode')}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isDarkMode}
+                    onValueChange={toggleTheme}
+                    trackColor={{ false: '#767577', true: theme.primary }}
+                    thumbColor={isDarkMode ? '#f4f3f4' : '#f4f3f4'}
+                  />
+                </View>
               </View>
             </ScrollView>
           </View>
@@ -1264,5 +1546,58 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
+  },
+  // Profile Section Styles
+  profileSection: {
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+  },
+  profileLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 8,
+    opacity: 0.7,
+  },
+  profileValue: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileInput: {
+    fontSize: 16,
+    fontFamily: 'Inter_400Regular',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  editActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileSaveButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileCancelButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
