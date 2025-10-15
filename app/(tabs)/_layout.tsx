@@ -1,14 +1,13 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2, DollarSign } from 'lucide-react-native';
-import { View, Text, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
+import { Shuffle, Trophy, Users, Settings, BarChart2, DollarSign } from 'lucide-react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../lib/auth';
+
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useLanguage } from '../../lib/language';
 
 function Header() {
-  const { clusterDisplayName } = useAuth();
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const router = useRouter();
@@ -49,9 +48,8 @@ export default function TabLayout() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const { t } = useLanguage();
-  const { isAdmin } = useAuth();
 
-  console.log('🔑 TabLayout - isAdmin:', isAdmin);
+  // TabLayout isAdmin monitoring - logs removed for production
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

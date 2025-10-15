@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
@@ -220,7 +220,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
             ) : playerGoals.length === 0 ? (
               <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogador encontrado</Text>
             ) : (
-              playerGoals.map((player, index) => (
+              playerGoals.map((player) => (
                 <View key={player.id_jogador} style={styles.playerRow}>
                   <View style={styles.playerInfo}>
                     <Text style={[styles.playerName, { color: theme.text }]}>{player.nome}</Text>

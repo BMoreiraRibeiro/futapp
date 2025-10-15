@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Platform, FlatList } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, FlatList } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
-import { ArrowUpDown } from 'lucide-react-native';
+
 import { useLanguage } from '../../lib/language';
 
 type PlayerStats = {
@@ -117,7 +117,6 @@ export default function RankingsScreen() {
       if (selectedYear !== 'total') {
         const startDate = `${selectedYear}-01-01`;
         const endDate = `${selectedYear}-12-31`;
-        console.log('Filtrando por período:', startDate, 'até', endDate); // Debug
         
         gamesQuery = gamesQuery
           .gte('data', startDate)
@@ -136,9 +135,6 @@ export default function RankingsScreen() {
 
       if (gamesResult.error) throw gamesResult.error;
       if (goalsResult.error) throw goalsResult.error;
-
-      console.log('Jogos encontrados:', gamesResult.data?.length); // Debug
-      console.log('Gols encontrados:', goalsResult.data?.length); // Debug
 
       const games = gamesResult.data;
       const goals = goalsResult.data;

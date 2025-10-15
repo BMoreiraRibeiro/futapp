@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
 import { WifiOff } from 'lucide-react-native';
 import { useTheme } from '../lib/theme';

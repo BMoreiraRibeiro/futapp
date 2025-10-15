@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useState } from 'react';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 type ClusterModalProps = {
   visible: boolean;
@@ -39,7 +39,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
 
       if (mode === 'create') {
         // Verifica se o nome_cluster já existe
-        console.log('🔍 Cluster: Verificando se o nome existe...', { nome_cluster: trimmedClusterId, mode });
         const { data: existingClusters, error: checkError } = await supabase
           .from('clusters')
           .select('cluster_uuid')
@@ -55,7 +54,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           return;
         }
 
-        console.log('🔍 Cluster: Resultado da verificação:', { existingClusters, count: existingClusters?.length || 0 });
 
         if (existingClusters && existingClusters.length > 0) {
           console.warn('⚠️ Cluster: Nome já existe');
@@ -98,9 +96,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           return;
         }
         
-        console.log('✅ Cluster: Cluster criado:', clusterData);
         const clusterUuid = clusterData[0].cluster_uuid;
-        console.log('✅ Cluster: UUID gerado pela BD:', clusterUuid);
 
         // 2. Adicionar o criador como membro admin em cluster_members
         const { data, error: memberError } = await supabase
@@ -193,7 +189,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           return;
         }
 
-        console.log('🔍 Cluster: Resultados encontrados:', existingClusters);
 
         if (!existingClusters || existingClusters.length === 0) {
           console.warn('⚠️ Cluster: Clube não encontrado');
@@ -203,7 +198,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         }
 
         const clusterUuid = existingClusters[0].cluster_uuid;
-        console.log('✅ Cluster: Clube encontrado, UUID:', clusterUuid);
 
         // Atualiza o usuário para o novo clube
         console.warn('🔄 Cluster: Adicionando usuário ao clube...');
@@ -337,8 +331,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       setLoading(true);
       setShowNameChangeModal(false);
       
-      console.log('✅ Cluster: Usuário optou por continuar com o nome atual:', currentPlayerName);
-      console.log('🔗 Cluster: Associando user_id ao jogador existente...');
       
       // IMPORTANTE: NÃO criar novo jogador!
       // Em vez disso, o jogador com este nome já existe no cluster.
@@ -347,8 +339,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       // 2. A tabela jogadores não tem user_id (é compartilhada)
       // 3. O cluster_members já foi criado anteriormente (linha 220-227)
       
-      console.log('✅ Cluster: Jogador existente será usado (sem criar duplicado)');
-      console.log('✅ Cluster: Associação completa - user_id:', userId, 'nome:', currentPlayerName);
       
       await updateClusterState();
       setPendingClusterUuid(null);
@@ -363,7 +353,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
 
   const handleChangeName = async () => {
     if (!newPlayerName.trim()) {
-      Alert.alert('Erro', 'Por favor, insira um novo nome');
+      setError('Por favor, insira um novo nome');
       return;
     }
 
@@ -373,7 +363,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       setLoading(true);
       
       const trimmedNewName = newPlayerName.trim();
-      console.log('🔄 Usuário optou por mudar o nome de', currentPlayerName, 'para', trimmedNewName);
       
       // Verificar se o novo nome também não existe
       const { data: existingPlayer, error: checkError } = await supabase
@@ -389,7 +378,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       }
 
       if (existingPlayer) {
-        Alert.alert('Nome em uso', 'Este nome também já está em uso. Por favor, escolha outro.');
+        setError('Este nome também já está em uso. Por favor, escolha outro.');
         setLoading(false);
         return;
       }
@@ -397,7 +386,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       // NÃO atualizar nome em cluster_members - essa tabela não tem coluna 'nome'
       // O nome só existe na tabela 'jogadores'
       
-      console.log('✅ Preparando para criar jogador com novo nome');
       
       // Criar jogador com o novo nome e user_id
       const { error: playerError } = await supabase
@@ -415,14 +403,13 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         throw playerError;
       }
 
-      console.log('✅ Jogador criado com novo nome');
       setShowNameChangeModal(false);
       await updateClusterState();
       setPendingClusterUuid(null);
       onComplete();
     } catch (error: any) {
       console.error('💥 Erro ao mudar nome:', error);
-      Alert.alert('Erro', error?.message || 'Erro ao alterar nome');
+      setError(error?.message || 'Erro ao alterar nome');
     } finally {
       setLoading(false);
     }

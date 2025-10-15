@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
@@ -36,42 +36,42 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
     try {
       setLoading(true);
       setPlayers([]); // Limpar primeiro
-      console.log('📋 AdminModal: Carregando jogadores do cluster:', currentClusterId);
       
-      // Buscar TODOS os membros do cluster que têm user_id
-      const { data, error } = await supabase
-        .from('cluster_members')
-        .select('nome, user_id, admin')
+      // Buscar jogadores visíveis do cluster com user_id válido
+      const { data: playersData, error: playersError } = await supabase
+        .from('jogadores')
+        .select('nome, user_id')
         .eq('cluster_uuid', currentClusterId)
         .not('user_id', 'is', null)
-        .not('nome', 'is', null)
         .order('nome');
 
-      if (error) {
-        console.error('❌ AdminModal: Erro ao carregar jogadores:', error);
-        console.error('❌ AdminModal: Detalhes do erro:', JSON.stringify(error, null, 2));
-        setPlayers([]); // Define vazio em caso de erro
+      if (playersError) {
+        console.error('❌ AdminModal: Erro ao carregar jogadores:', playersError);
+        setPlayers([]);
         setLoading(false);
         return;
       }
-      
-      console.log('📊 AdminModal: Dados retornados:', JSON.stringify(data, null, 2));
-      console.log('✅ AdminModal: Total de registros encontrados:', data?.length || 0);
-      
-      if (data && data.length > 0) {
-        console.log('👥 AdminModal: Jogadores encontrados:');
-        data.forEach((player, index) => {
-          console.log(`  ${index + 1}. Nome: ${player.nome}, User ID: ${player.user_id}, Admin: ${player.admin}`);
-        });
-        
-        setPlayers(data);
-        setLoading(false);
-        console.log('✅ AdminModal: State players atualizado com', data.length, 'jogadores');
-      } else {
-        console.warn('⚠️ AdminModal: Nenhum jogador encontrado no cluster:', currentClusterId);
-        setPlayers([]);
-        setLoading(false);
-      }
+
+      // Buscar status de admin para cada jogador
+      const playersWithAdmin = await Promise.all(
+        (playersData || []).map(async (player) => {
+          const { data: memberData } = await supabase
+            .from('cluster_members')
+            .select('admin')
+            .eq('cluster_uuid', currentClusterId)
+            .eq('user_id', player.user_id)
+            .maybeSingle();
+
+          return {
+            nome: player.nome,
+            user_id: player.user_id,
+            admin: memberData?.admin || false
+          };
+        })
+      );
+
+      setPlayers(playersWithAdmin);
+      setLoading(false);
     } catch (error) {
       console.error('💥 AdminModal: Erro ao carregar jogadores:', error);
       setPlayers([]); // Define vazio em caso de erro
@@ -81,23 +81,25 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
 
   const handleAddAdmins = async () => {
     if (selectedPlayers.length === 0) return;
-    
+
     try {
-      console.log('➕ AdminModal: Adicionando admins:', selectedPlayers);
+      // Mapear nomes selecionados para user_ids
+      const selectedUserIds = players
+        .filter(player => selectedPlayers.includes(player.nome))
+        .map(player => player.user_id);
 
       // Define os jogadores selecionados como admin
       const { error } = await supabase
         .from('cluster_members')
         .update({ admin: true })
         .eq('cluster_uuid', currentClusterId)
-        .in('nome', selectedPlayers);
+        .in('user_id', selectedUserIds);
 
       if (error) {
         console.error('❌ AdminModal: Erro ao adicionar admins:', error);
         throw error;
       }
 
-      console.log('✅ AdminModal: Admins adicionados com sucesso');
       setSelectedPlayers([]);
       onAdminChanged();
       loadPlayers(); // Recarregar lista
@@ -110,21 +112,23 @@ export function AdminModal({ visible, onClose, currentClusterId, onAdminChanged 
     if (selectedPlayers.length === 0) return;
     
     try {
-      console.log('➖ AdminModal: Removendo admins:', selectedPlayers);
+      // Mapear nomes selecionados para user_ids
+      const selectedUserIds = players
+        .filter(player => selectedPlayers.includes(player.nome))
+        .map(player => player.user_id);
 
       // Remove admin dos jogadores selecionados
       const { error } = await supabase
         .from('cluster_members')
         .update({ admin: false })
         .eq('cluster_uuid', currentClusterId)
-        .in('nome', selectedPlayers);
+        .in('user_id', selectedUserIds);
 
       if (error) {
         console.error('❌ AdminModal: Erro ao remover admins:', error);
         throw error;
       }
 
-      console.log('✅ AdminModal: Admins removidos com sucesso');
       setSelectedPlayers([]);
       onAdminChanged();
       loadPlayers(); // Recarregar lista

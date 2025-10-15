@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, Image, Modal } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Image, Modal } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { Toast } from '../../components/Toast';
-import { Plus, Trash2, Eye, EyeOff, Cross, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { useLanguage } from '../../lib/language';
 
 type Player = {
@@ -36,11 +36,11 @@ export default function PlayersScreen() {
   const [editSuccessId, setEditSuccessId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [playerRating, setPlayerRating] = useState('');
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [playerToDelete, setPlayerToDelete] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
-    console.log('🔄 Players: useEffect disparado, clusterName:', clusterName);
     if (clusterName) {
-      console.log('✅ Players: clusterName existe, chamando fetchPlayers...');
       fetchPlayers();
     } else {
       console.warn('⚠️ Players: clusterName é null, não vai buscar jogadores');
@@ -67,7 +67,6 @@ export default function PlayersScreen() {
 
     try {
       setLoading(true);
-      console.log('🔍 fetchPlayers: Buscando jogadores para cluster:', clusterName);
       
       const { data, error } = await supabase
         .from('jogadores')
@@ -75,19 +74,12 @@ export default function PlayersScreen() {
         .eq('cluster_uuid', clusterName)
         .order('nome');
 
-      console.log('🔍 fetchPlayers: Resultado:', { 
-        count: data?.length || 0, 
-        error: error?.message,
-        data: data 
-      });
-
       if (error) {
         console.error('❌ fetchPlayers: Erro:', error);
         throw error;
       }
       
       setPlayers(data || []);
-      console.log('✅ fetchPlayers: Players state atualizado com', data?.length || 0, 'jogadores');
     } catch (error: any) {
       console.error('💥 fetchPlayers: Erro crítico:', error);
       showToast('Erro ao carregar jogadores', 'error');
@@ -97,36 +89,32 @@ export default function PlayersScreen() {
   };
 
   const handleDeletePlayer = async (id_jogador: string, nome: string) => {
-    Alert.alert(
-      'Confirmar exclusão',
-      `Tem certeza que deseja excluir o jogador ${nome}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const { error } = await supabase
-                .from('jogadores')
-                .delete()
-                .eq('id_jogador', id_jogador);
+    setPlayerToDelete({id: id_jogador, name: nome});
+    setDeleteConfirmVisible(true);
+  };
 
-              if (error) throw error;
+  const confirmDeletePlayer = async () => {
+    if (!playerToDelete) return;
 
-              showToast('Jogador excluído com sucesso!', 'success');
-              fetchPlayers();
-            } catch (error) {
-              console.error('Erro ao excluir jogador:', error);
-              showToast('Erro ao excluir jogador', 'error');
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
-      ]
-    );
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('jogadores')
+        .delete()
+        .eq('id_jogador', playerToDelete.id);
+
+      if (error) throw error;
+
+      showToast('Jogador excluído com sucesso!', 'success');
+      fetchPlayers();
+    } catch (error) {
+      console.error('Erro ao excluir jogador:', error);
+      showToast('Erro ao excluir jogador', 'error');
+    } finally {
+      setLoading(false);
+      setDeleteConfirmVisible(false);
+      setPlayerToDelete(null);
+    }
   };
 
   const handleToggleVisibility = async (id_jogador: string, currentVisibility: boolean) => {
@@ -156,8 +144,6 @@ export default function PlayersScreen() {
   };
 
   const handleSave = async () => {
-    console.log('💾 Players: handleSave chamado, editingPlayer:', editingPlayer);
-    
     if (!playerName.trim()) {
       showToast('Por favor, insira o nome do jogador', 'error');
       return;
@@ -182,10 +168,8 @@ export default function PlayersScreen() {
 
     // Se editingPlayer é null, é uma INSERÇÃO, caso contrário é UPDATE
     if (!editingPlayer) {
-      console.log('➕ Players: Modo INSERÇÃO detectado');
       await handleInsertNewPlayer(playerName.trim(), rating);
     } else {
-      console.log('✏️ Players: Modo EDIÇÃO detectado');
       await handleUpdatePlayer(playerName.trim(), rating);
     }
   };
@@ -198,12 +182,8 @@ export default function PlayersScreen() {
 
     try {
       setLoading(true);
-      console.log('➕ Players: Inserindo novo jogador...');
-      console.log('➕ Players: Cluster UUID:', clusterName);
-      console.log('➕ Players: Nome:', nome);
-      console.log('➕ Players: Rating:', rating);
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('jogadores')
         .insert([
           {
@@ -215,8 +195,6 @@ export default function PlayersScreen() {
         ])
         .select();
 
-      console.log('➕ Players: Resultado do insert:', { data, error });
-
       if (error) {
         console.error('❌ Players: Erro ao inserir:', error);
         console.error('❌ Players: Código do erro:', error.code);
@@ -225,7 +203,6 @@ export default function PlayersScreen() {
         throw error;
       }
 
-      console.log('✅ Players: Jogador adicionado:', data);
       showToast('Jogador adicionado com sucesso!', 'success');
       setPlayerName('');
       setPlayerRating('');
@@ -244,10 +221,6 @@ export default function PlayersScreen() {
     
     try {
       setLoading(true);
-      console.log('✏️ Players: Atualizando jogador...');
-      console.log('✏️ Players: ID:', editingPlayer.id_jogador);
-      console.log('✏️ Players: Novo nome:', nome);
-      console.log('✏️ Players: Novo rating:', rating);
       
       const { error } = await supabase
         .from('jogadores')
@@ -260,7 +233,6 @@ export default function PlayersScreen() {
 
       if (error) throw error;
 
-  console.log('✅ Players: Jogador atualizado');
   setEditSuccessId(editingPlayer.id_jogador);
   setPlayerName('');
   setPlayerRating('');
@@ -325,7 +297,6 @@ export default function PlayersScreen() {
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: theme.primary }]}
           onPress={() => {
-            console.log('➕ Players: Botão adicionar clicado');
             setEditingPlayer(null);
             setPlayerName('');
             setPlayerRating('50'); // Rating default: 50
@@ -394,6 +365,42 @@ export default function PlayersScreen() {
                     onPress={handleSave}
                   >
                     <Text style={styles.modalButtonText}>{t('common.save')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {deleteConfirmVisible && playerToDelete && (
+          <Modal
+            visible={deleteConfirmVisible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setDeleteConfirmVisible(false)}
+          >
+            <View style={[styles.modalContainer, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+              <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                  Confirmar exclusão
+                </Text>
+                {playerToDelete && (
+                  <Text style={[styles.modalMessage, { color: theme.text }]}>
+                    Tem certeza que deseja excluir o jogador {playerToDelete.name}?
+                  </Text>
+                )}
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: theme.secondary }]}
+                    onPress={() => setDeleteConfirmVisible(false)}
+                  >
+                    <Text style={styles.modalButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: theme.error }]}
+                    onPress={confirmDeletePlayer}
+                  >
+                    <Text style={styles.modalButtonText}>Excluir</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -498,6 +505,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontFamily: 'Inter_700Bold',
     marginBottom: 16,
+  },
+  modalMessage: {
+    fontSize: 16,
+    marginBottom: 24,
+    lineHeight: 22,
   },
   input: {
     height: 40,

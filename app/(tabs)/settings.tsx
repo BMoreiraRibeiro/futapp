@@ -1,11 +1,11 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated, Modal, Alert } from 'react-native';
+﻿import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle } from 'lucide-react-native';
 import { Check } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
 import { AdminModal } from '../../components/AdminModal';
@@ -28,8 +28,7 @@ export default function SettingsScreen() {
   const theme = isDarkMode ? colors.dark : colors.light;
   const { settings: clusterSettings, updateSettings, loading: settingsLoading } = useClusterSettings(clusterName);
   
-  console.log('⚙️ Settings - isAdmin:', isAdmin);
-  console.log('⚙️ Settings - loading:', settingsLoading);
+  // Settings screen monitoring - logs removed for production
   
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
@@ -82,19 +81,17 @@ export default function SettingsScreen() {
       setTempTeamAColor(clusterSettings.team_a_color);
       setTempTeamBColor(clusterSettings.team_b_color);
       setSettingsLoaded(true);
-      console.log('⚙️ Configurações carregadas:', clusterSettings);
+      // Settings loaded - logs removed for production
     }
   }, [settingsLoading, settingsLoaded, clusterSettings]);
 
   // Carregar nome do jogador
   useEffect(() => {
     const loadPlayerName = async () => {
-      console.log('🔄 Carregando nome do jogador...');
-      console.log('👤 User ID:', session?.user?.id);
-      console.log('🏢 Cluster UUID:', clusterName);
+      // Loading player name - logs removed for production
       
       if (!session?.user?.id || !clusterName) {
-        console.log('⚠️ Falta user_id ou clusterName, não carregando nome');
+        // Missing user_id or clusterName, not loading name - logs removed for production
         return;
       }
       
@@ -114,7 +111,7 @@ export default function SettingsScreen() {
         // Se não encontrou por user_id (migração ainda não executada)
         // Tentar buscar pelo nome do player_metadata
         if (!data && session.user.user_metadata?.player_name) {
-          console.log('⚠️ user_id não encontrado, tentando pelo player_name...');
+          // user_id not found, trying by player_name - logs removed for production
           const fallbackResult = await supabase
             .from('jogadores')
             .select('nome')
@@ -126,19 +123,19 @@ export default function SettingsScreen() {
           error = fallbackResult.error;
         }
 
-        console.log('📊 Resultado da busca:', { data, error });
+        // Search result logging removed for production
 
         if (error && error.code !== 'PGRST116') throw error;
         
         if (data?.nome) {
-          console.log('✅ Nome encontrado:', data.nome);
+          // Name found - logs removed for production
           setPlayerName(data.nome);
           setTempPlayerName(data.nome);
         } else {
-          console.log('⚠️ Nome não definido na BD');
+          // Name not defined in DB - logs removed for production
           // Usar player_name do metadata como fallback
           const fallbackName = session.user.user_metadata?.player_name || 'Jogador';
-          console.log('📝 Usando fallback:', fallbackName);
+          // Using fallback - logs removed for production
           setPlayerName(fallbackName);
           setTempPlayerName(fallbackName);
         }
@@ -210,11 +207,7 @@ export default function SettingsScreen() {
       
       // Pequena pausa para garantir que o nome foi atualizado
       setTimeout(() => {
-        Alert.alert(
-          'Nome Atualizado',
-          'O nome do cluster foi atualizado com sucesso!',
-          [{ text: 'OK' }]
-        );
+        showToast('O nome do cluster foi atualizado com sucesso!', 'success');
       }, 300);
     } catch (error: any) {
       console.error('Erro ao renomear cluster:', error);
@@ -223,11 +216,7 @@ export default function SettingsScreen() {
   };
 
   const handleSavePlayerName = async () => {
-    console.log('Iniciando atualizacao do nome...');
-    console.log('Nome atual:', playerName);
-    console.log('Novo nome:', tempPlayerName.trim());
-    console.log('User ID:', session?.user?.id);
-    console.log('Cluster UUID:', clusterName);
+    // Starting name update - logs removed for production
     
     if (!tempPlayerName.trim()) {
       showToast('Por favor, insira um nome', 'error');
@@ -243,14 +232,14 @@ export default function SettingsScreen() {
     const trimmedNewName = tempPlayerName.trim();
     
     if (trimmedNewName === playerName) {
-      console.log('Nome nao foi alterado');
+      // Name was not changed - logs removed for production
       setIsEditingPlayerName(false);
       return;
     }
 
     try {
       // 1. Verificar se o novo nome já existe em OUTRO jogador (diferente user_id)
-      console.log('Verificando se o novo nome ja existe...');
+      // Checking if new name already exists - logs removed for production
       const { data: existingPlayer, error: checkError } = await supabase
         .from('jogadores')
         .select('nome, user_id')
@@ -270,10 +259,10 @@ export default function SettingsScreen() {
         return;
       }
 
-      console.log('Nome disponivel');
+      // Name available - logs removed for production
 
       // 2. Atualizar o nome do jogador usando user_id e cluster_uuid
-      console.log('Atualizando nome do jogador...');
+      // Updating player name - logs removed for production
       const { error: updateError } = await supabase
         .from('jogadores')
         .update({ nome: trimmedNewName })
@@ -285,7 +274,7 @@ export default function SettingsScreen() {
         throw updateError;
       }
 
-      console.log('Nome atualizado com sucesso');
+      // Name updated successfully - logs removed for production
 
       // 3. Atualizar estado local
   setPlayerName(trimmedNewName);
@@ -299,118 +288,11 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleSavePlayerName_OLD = async () => {
-    console.log('🔄 handleSavePlayerName - Iniciando atualização do nome...');
-    console.log('📝 Nome atual:', playerName);
-    console.log('📝 Novo nome:', tempPlayerName.trim());
-    console.log('👤 User ID:', session?.user?.id);
-    console.log('🏢 Cluster UUID:', clusterName);
-    
-    if (!tempPlayerName.trim()) {
-      showToast('Por favor, insira um nome', 'error');
-      return;
-    }
-
-    if (!session?.user?.id || !clusterName) {
-      console.error('❌ Falta informação de sessão ou cluster');
-      showToast('Informações de sessão não disponíveis', 'error');
-      return;
-    }
-
-    const trimmedNewName = tempPlayerName.trim();
-    
-    // Se o nome não mudou, só fecha a edição
-    if (trimmedNewName === playerName) {
-      console.log('ℹ️ Nome não foi alterado');
-      setIsEditingPlayerName(false);
-      return;
-    }
-
-    try {
-      // 1. Verificar se o novo nome já existe em outro jogador
-      console.log('� Verificando se o novo nome já existe...');
-      const { data: existingPlayer, error: checkError } = await supabase
-        .from('jogadores')
-        .select('nome')
-        .eq('nome', trimmedNewName)
-        .eq('cluster_uuid', clusterName)
-        .maybeSingle();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('❌ Erro ao verificar novo nome:', checkError);
-        throw checkError;
-      }
-
-      if (existingPlayer) {
-        console.warn('⚠️ Nome já existe noutro jogador');
-        showToast('Este nome já está em uso por outro jogador. Por favor, escolha outro.', 'error');
-        return;
-      }
-
-      console.log('✅ Nome disponível');
-
-      // 2. NÃO atualizar cluster_members - essa tabela não tem coluna 'nome'
-      // Apenas atualizar na tabela jogadores (passo 3 abaixo)
-      console.log('✅ Pulando atualização de cluster_members (coluna nome não existe)');
-
-      // 3. Verificar se existe jogador com o nome antigo
-      const { data: oldPlayer, error: oldPlayerError } = await supabase
-        .from('jogadores')
-        .select('nome, rating, visivel')
-        .eq('nome', playerName)
-        .eq('cluster_uuid', clusterName)
-        .maybeSingle();
-
-      if (oldPlayerError && oldPlayerError.code !== 'PGRST116') {
-        console.error('❌ Erro ao buscar jogador antigo:', oldPlayerError);
-        throw oldPlayerError;
-      }
-
-      if (oldPlayer) {
-        console.log('🔄 Jogador antigo encontrado, criando novo...');
-        
-        // 4. Criar novo jogador com o novo nome
-        const { error: newPlayerError } = await supabase
-          .from('jogadores')
-          .insert({
-            nome: trimmedNewName,
-            cluster_uuid: clusterName,
-            rating: oldPlayer.rating || 1000,
-            visivel: oldPlayer.visivel !== false
-          });
-
-        if (newPlayerError) {
-          console.error('❌ Erro ao criar novo jogador:', newPlayerError);
-          // NÃO reverter cluster_members - essa tabela não tem coluna 'nome'
-          throw newPlayerError;
-        }
-
-        console.log('✅ Novo jogador criado');
-      } else {
-        console.log('⚠️ Jogador antigo não encontrado');
-      }
-
-      // 5. Atualizar estado local
-      setPlayerName(trimmedNewName);
-      setIsEditingPlayerName(false);
-      showToast('Nome atualizado com sucesso!', 'success');
-      console.log('✅ Nome atualizado com sucesso!');
-      
-    } catch (error: any) {
-      console.error('❌ Erro ao atualizar nome do jogador:', error);
-      showToast(error.message || 'Erro ao atualizar nome', 'error');
-    }
-  };
-
   const handleLeaveCluster = () => {
     setShowLeaveConfirmation(true);
   };
 
   const confirmLeaveCluster = async () => {
-    console.log('� confirmLeaveCluster - Saindo do cluster...');
-    console.log('� clusterName:', clusterName);
-    console.log('� user_id:', session?.user.id);
-    
     try {
       if (!clusterName || !session?.user.id) {
         console.error('❌ ERRO: clusterName ou user_id vazio!');
@@ -418,7 +300,6 @@ export default function SettingsScreen() {
         return;
       }
 
-      console.log('🗑️ Removendo você do cluster_members...');
       const { error: memberError } = await supabase
         .from('cluster_members')
         .delete()
@@ -430,37 +311,26 @@ export default function SettingsScreen() {
         throw memberError;
       }
 
-      console.log('✅ Você saiu do cluster com sucesso!');
       showToast('Saiu do cluster com sucesso', 'success');
       setShowLeaveConfirmation(false);
       setShowAdminSettingsModal(false);
       
       // CRÍTICO: Limpar estados IMEDIATAMENTE (síncrono)
-      console.log('🧹 [LEAVE] Limpando estados do cluster IMEDIATAMENTE...');
-      console.log('🧹 [LEAVE] Estados ANTES de clearClusterState - usar useAuth para ver os valores atuais');
-      
       clearClusterState();
-      console.log('✅ [LEAVE] clearClusterState() executado');
       
       // Verificar se os estados foram limpos (com timeout para aguardar React batching)
       setTimeout(() => {
-        console.log('🔍 [LEAVE] Verificação pós-clear (após React batching)');
         // Os logs do monitor useEffect no auth.tsx vão mostrar os valores
       }, 100);
       
       // Depois, buscar do banco (assíncrono) para confirmar
-      console.log('🔄 [LEAVE] Confirmando com banco de dados...');
       await updateClusterState();
-      console.log('✅ [LEAVE] updateClusterState() executado');
       
       // Pequena espera para garantir que o estado foi atualizado
-      console.log('⏳ [LEAVE] Aguardando 500ms...');
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Fazer logout para limpar completamente a sessão
-      console.log('🚪 [LEAVE] Fazendo logout após sair do cluster...');
       await signOut();
-      console.log('✅ [LEAVE] signOut() executado');
     } catch (error: any) {
       console.error('💥 ERRO ao sair do cluster:', error);
       showToast(error.message || 'Erro ao sair do cluster', 'error');
@@ -473,10 +343,6 @@ export default function SettingsScreen() {
   };
 
   const confirmDeleteCluster = async () => {
-    console.warn('� confirmDeleteCluster - Apagando cluster completo!');
-    console.warn('🔴 clusterName:', clusterName);
-    console.warn('🔴 isAdmin:', isAdmin);
-    
     try {
       if (!clusterName) {
         console.error('❌ ERRO: clusterName está vazio!');
@@ -488,8 +354,6 @@ export default function SettingsScreen() {
         showToast('Apenas administradores podem apagar o cluster', 'error');
         return;
       }
-
-      console.warn('🗑️ Eliminando cluster completo...');
 
       // IMPORTANTE: Por causa das foreign keys com ON DELETE CASCADE,
       // ao apagar o cluster, automaticamente apaga:
@@ -509,24 +373,20 @@ export default function SettingsScreen() {
         throw clusterError;
       }
 
-      console.warn('✅ Cluster e todos os dados eliminados com sucesso!');
       showToast('Cluster eliminado com sucesso', 'success');
       setShowDeleteConfirmation(false);
       setShowAdminSettingsModal(false);
       
       // CRÍTICO: Limpar estados IMEDIATAMENTE (síncrono)
-      console.log('🧹 Limpando estados do cluster IMEDIATAMENTE...');
       clearClusterState();
       
       // Depois, buscar do banco (assíncrono) para confirmar
-      console.log('🔄 Confirmando com banco de dados...');
       await updateClusterState();
       
       // Pequena espera para garantir que o estado foi atualizado
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // Fazer logout para limpar completamente a sessão
-      console.log('🚪 Fazendo logout após eliminar cluster...');
       await signOut();
     } catch (error: any) {
       console.error('💥 ERRO ao eliminar cluster:', error);
