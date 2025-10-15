@@ -90,7 +90,7 @@ function CustomSplashScreen({ message }: { message?: string }) {
         />
       </Animated.View>
       <Animated.Text style={[styles.splashText, { opacity }]}>
-        Futebol às quartas
+        Futebol às <Text style={styles.splashTextHighlight}>quartas</Text>
       </Animated.Text>
       <Animated.Text style={[styles.loadingText, { opacity }]}>
         {loadingText}
@@ -485,11 +485,19 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: 'Inter_700Bold',
     marginBottom: 8,
+    textAlign: 'center',
+    flexWrap: 'nowrap',
+  },
+  splashTextHighlight: {
+    color: '#4ade80',
+    fontSize: 28,
+    fontFamily: 'Inter_700Bold',
   },
   loadingText: {
     color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     opacity: 0.8,
+    textAlign: 'center',
   },
 });

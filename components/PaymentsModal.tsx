@@ -7,6 +7,7 @@ import { Toast } from './Toast';
 import { X, Check } from 'lucide-react-native';
 
 type PlayerPayment = {
+  id_jogador: string;
   nome: string;
   pago: boolean;
 };
@@ -50,7 +51,7 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
       console.log('🎮 Game ID:', gameId);
       console.log('🏢 Cluster ID:', clusterId);
       
-      // Buscar o jogo para identificar os jogadores das equipas
+      // Buscar o jogo para identificar os UUIDs dos jogadores das equipas
       const { data: gameData, error: gameError } = await supabase
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
@@ -61,38 +62,67 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
       if (gameError) throw gameError;
       console.log('📋 Jogo encontrado:', gameData);
 
-      // Buscar os pagamentos existentes
+      // Buscar os pagamentos existentes COM JOIN para obter nome
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('calotes_jogo')
-        .select('nome_jogador, pago')
+        .select(`
+          pago,
+          id_jogador,
+          jogadores!inner (
+            nome
+          )
+        `)
         .eq('id_jogo', gameId)
         .eq('cluster_uuid', clusterId);
 
       if (paymentsError) throw paymentsError;
       console.log('💳 Pagamentos encontrados:', paymentsData?.length, paymentsData);
 
-      // Criar um mapa de pagamentos por jogador
+      // Criar um mapa de pagamentos por id_jogador
       const paymentsMap = new Map(
-        paymentsData?.map(p => [p.nome_jogador, p.pago]) || []
+        paymentsData?.map(p => [
+          p.id_jogador,
+          // @ts-ignore
+          { pago: p.pago, nome: p.jogadores?.nome }
+        ]) || []
       );
       console.log('🗺️ Mapa de pagamentos:', Array.from(paymentsMap.entries()));
 
-      // Converter as strings de jogadores em arrays
-      const jogadoresEquipaA = gameData.jogadores_equipa_a.split(', ');
-      const jogadoresEquipaB = gameData.jogadores_equipa_b.split(', ');
+      // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
+      const jogadoresEquipaA: string[] = gameData.jogadores_equipa_a || [];
+      const jogadoresEquipaB: string[] = gameData.jogadores_equipa_b || [];
       console.log('👥 Equipa A:', jogadoresEquipaA);
       console.log('👥 Equipa B:', jogadoresEquipaB);
 
+      // Buscar informações dos jogadores
+      const allPlayerIds = [...jogadoresEquipaA, ...jogadoresEquipaB];
+      const { data: playersData } = await supabase
+        .from('jogadores')
+        .select('id_jogador, nome')
+        .in('id_jogador', allPlayerIds);
+
+      const playersMap = new Map(
+        playersData?.map(p => [p.id_jogador, p.nome]) || []
+      );
+
       // Criar a lista de jogadores com seus respectivos pagamentos
-      const playersList = [
-        ...jogadoresEquipaA.map((nome: string) => ({ 
-          nome, 
-          pago: paymentsMap.get(nome) || false 
-        })),
-        ...jogadoresEquipaB.map((nome: string) => ({ 
-          nome, 
-          pago: paymentsMap.get(nome) || false 
-        }))
+      const playersList: PlayerPayment[] = [
+        ...jogadoresEquipaA.map((id_jogador: string) => {
+          const paymentInfo = paymentsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            pago: paymentInfo?.pago || false
+          };
+        }),
+        ...jogadoresEquipaB.map((id_jogador: string) => {
+          const paymentInfo = paymentsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            pago: paymentInfo?.pago || false
+          };
+        })
       ];
 
       console.log('✅ Lista final de jogadores:', playersList);
@@ -119,10 +149,10 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
     setToastConfig(prev => ({ ...prev, visible: false }));
   };
 
-  const togglePayment = (playerName: string) => {
+  const togglePayment = (playerId: string) => {
     setPlayerPayments(prev => 
       prev.map(p => 
-        p.nome === playerName 
+        p.id_jogador === playerId 
           ? { ...p, pago: !p.pago }
           : p
       )
@@ -149,10 +179,10 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           .upsert({
             cluster_uuid: clusterId,
             id_jogo: gameId,
-            nome_jogador: player.nome,
+            id_jogador: player.id_jogador,
             pago: player.pago
           }, {
-            onConflict: 'cluster_uuid,id_jogo,nome_jogador'
+            onConflict: 'cluster_uuid,id_jogo,id_jogador'
           })
           .select();
 
@@ -212,9 +242,9 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
                 </Text>
               </View>
             ) : playerPayments && playerPayments.length > 0 ? (
-              playerPayments.map((player, index) => (
+              playerPayments.map((player) => (
                 <TouchableOpacity
-                  key={index}
+                  key={player.id_jogador}
                   style={[
                     styles.playerRow,
                     { 
@@ -223,7 +253,7 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
                       opacity: isAdmin ? 1 : 0.6
                     }
                   ]}
-                  onPress={() => isAdmin && togglePayment(player.nome)}
+                  onPress={() => isAdmin && togglePayment(player.id_jogador)}
                   disabled={!isAdmin}
                 >
                   <Text style={[styles.playerName, { color: theme.text }]}>

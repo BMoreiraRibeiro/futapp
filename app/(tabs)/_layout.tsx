@@ -15,29 +15,30 @@ function Header() {
 
   return (
     <LinearGradient
-      colors={['black', 'black', theme.primary]}
+      colors={['#1a1a2e', '#16213e', theme.primary]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.header}>
       <View style={styles.headerContent}>
-        <Image 
-          source={require('../../assets/images/soccer_ball.png')}
-          style={styles.icon}
-        />
-        <View style={styles.titleContainer}>
-          <Text style={styles.headerTitle}>Futebol às quartas</Text>
-          <View style={styles.clusterRow}>
-            <Text style={styles.separator}>Clube:</Text>
-            <Text style={styles.clusterName}>
-              {clusterDisplayName || 'Carregando...'}
-            </Text>
+        <View style={styles.titleRow}>
+          <View style={styles.iconWrapper}>
+            <Image 
+              source={require('../../assets/images/soccer_ball.png')}
+              style={styles.icon}
+            />
           </View>
+          <Text style={styles.headerTitle}>
+            Futebol às <Text style={styles.headerTitleHighlight}>quartas</Text>
+          </Text>
         </View>
         <TouchableOpacity 
           style={styles.settingsButton}
           onPress={() => router.push('/(tabs)/settings')}
+          activeOpacity={0.7}
         >
-          <Settings size={24} color="white" />
+          <View style={styles.settingsIconContainer}>
+            <Settings size={26} color="white" strokeWidth={2.5} />
+          </View>
         </TouchableOpacity>
       </View>
     </LinearGradient>
@@ -139,54 +140,54 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   header: {
-    paddingTop: 48,
-    paddingBottom: 16,
+    paddingTop: 24,
+    paddingBottom: 8,
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
   },
-  titleContainer: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  clusterRow: {
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 8,
   },
-  headerTitle: {
-    color: 'rgba(48, 190, 72, 0.9)',
-    fontSize: 30,
-    fontFamily: 'Inter_700Bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-    fontWeight: 'bold',
-  },
-  separator: {
-    color: '#ffffff',
-    fontSize: 16,
-    opacity: 0.9,
-    marginRight: 8,
-  },
-  clusterName: {
-    color: 'blue',
-    fontSize: 20,
-    opacity: 0.9,
-    fontFamily: 'Inter_700Bold',
-    fontWeight: 'bold',
+  iconWrapper: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   icon: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     transform: [{ rotate: '-15deg' }],
     tintColor: '#ffffff',
   },
+  headerTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
+  },
+  headerTitleHighlight: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    fontWeight: 'bold',
+  },
   settingsButton: {
     padding: 8,
-    marginLeft: 8,
-    marginBottom: -4,
+  },
+  settingsIconContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 });

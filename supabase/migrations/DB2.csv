@@ -1,16 +1,15 @@
 schema_name,table_name,column_name,data_type,is_primary_key,fk_name,fk_source_columns,fk_target_schema,fk_target_table,fk_target_columns
-public,calotes_jogo,cluster_uuid,uuid,true,calotes_jogo_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
 public,calotes_jogo,cluster_uuid,uuid,true,calotes_jogo_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
+public,calotes_jogo,cluster_uuid,uuid,true,calotes_jogo_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
+public,calotes_jogo,id_jogador,uuid,true,calotes_jogo_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
+public,calotes_jogo,id_jogador,uuid,true,calotes_jogo_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
 public,calotes_jogo,id_jogo,uuid,true,calotes_jogo_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,calotes_jogo,id_jogo,uuid,true,calotes_jogo_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
-public,calotes_jogo,nome_jogador,text,true,calotes_jogo_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,calotes_jogo,nome_jogador,text,true,calotes_jogo_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
+public,calotes_jogo,id_jogo,uuid,true,calotes_jogo_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
+public,calotes_jogo,pago,boolean,false,calotes_jogo_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
 public,calotes_jogo,pago,boolean,false,calotes_jogo_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,calotes_jogo,pago,boolean,false,calotes_jogo_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
 public,cluster_members,admin,boolean,false,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,cluster_members,cluster_uuid,uuid,true,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,cluster_members,created_at,timestamp with time zone,false,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
-public,cluster_members,nome,text,false,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,cluster_members,updated_at,timestamp with time zone,false,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,cluster_members,user_id,uuid,true,cluster_members_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,clusters,cluster_uuid,uuid,true,clusters_created_by_fkey,{created_by},auth,users,{id}
@@ -23,21 +22,33 @@ public,configuracoes_cluster,team_a_color,text,false,configuracoes_cluster_clust
 public,configuracoes_cluster,team_a_name,text,false,configuracoes_cluster_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,configuracoes_cluster,team_b_color,text,false,configuracoes_cluster_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,configuracoes_cluster,team_b_name,text,false,configuracoes_cluster_cluster_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,golos_por_jogador,cluster_uuid,uuid,true,golos_por_jogador_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
 public,golos_por_jogador,cluster_uuid,uuid,true,golos_por_jogador_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,golos_por_jogador,cluster_uuid,uuid,true,golos_por_jogador_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
+public,golos_por_jogador,id_jogador,uuid,true,golos_por_jogador_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
+public,golos_por_jogador,id_jogador,uuid,true,golos_por_jogador_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
 public,golos_por_jogador,id_jogo,uuid,true,golos_por_jogador_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,golos_por_jogador,id_jogo,uuid,true,golos_por_jogador_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
-public,golos_por_jogador,nome_jogador,text,true,golos_por_jogador_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
-public,golos_por_jogador,nome_jogador,text,true,golos_por_jogador_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
+public,golos_por_jogador,id_jogo,uuid,true,golos_por_jogador_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
+public,golos_por_jogador,numero_golos,integer,false,golos_por_jogador_jogador_id_fkey,{id_jogador},public,jogadores,{id_jogador}
 public,golos_por_jogador,numero_golos,integer,false,golos_por_jogador_resultado_fkey,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}",public,resultados_jogos,"{id_jogo,id_jogo,cluster_uuid,cluster_uuid}"
-public,golos_por_jogador,numero_golos,integer,false,golos_por_jogador_jogador_fkey,"{nome_jogador,nome_jogador,cluster_uuid,cluster_uuid}",public,jogadores,"{nome,nome,cluster_uuid,cluster_uuid}"
-public,jogadores,cluster_uuid,uuid,true,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
-public,jogadores,nome,text,true,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,cluster_uuid,uuid,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,cluster_uuid,uuid,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,created_at,timestamp with time zone,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,created_at,timestamp with time zone,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,id_jogador,uuid,true,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,id_jogador,uuid,true,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,nome,text,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,nome,text,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,jogadores,rating,integer,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,rating,integer,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,updated_at,timestamp with time zone,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,updated_at,timestamp with time zone,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,user_id,uuid,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
+public,jogadores,user_id,uuid,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,jogadores,visivel,boolean,false,jogadores_user_id_fkey,{user_id},auth,users,{id}
 public,jogadores,visivel,boolean,false,jogadores_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,resultados_jogos,cluster_uuid,uuid,true,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,resultados_jogos,data,date,false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,resultados_jogos,id_jogo,uuid,true,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
-public,resultados_jogos,jogadores_equipa_a,text,false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
-public,resultados_jogos,jogadores_equipa_b,text,false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,resultados_jogos,jogadores_equipa_a,uuid[],false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
+public,resultados_jogos,jogadores_equipa_b,uuid[],false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}
 public,resultados_jogos,vencedor,character(1),false,resultados_jogos_cluster_uuid_fkey,{cluster_uuid},public,clusters,{cluster_uuid}

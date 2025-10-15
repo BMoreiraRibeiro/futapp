@@ -17,8 +17,8 @@ type GameResult = {
   id_jogo: string;
   data: string;
   vencedor: 'A' | 'B' | 'E' | null;
-  jogadores_equipa_a: string;
-  jogadores_equipa_b: string;
+  jogadores_equipa_a: string[]; // Array de UUIDs convertido para nomes
+  jogadores_equipa_b: string[]; // Array de UUIDs convertido para nomes
 };
 
 export default function ResultsScreen() {
@@ -209,15 +209,15 @@ export default function ResultsScreen() {
                 {item.vencedor === 'E' ? (
                   <>
                     <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                      {t('index.teamA')}: {item.jogadores_equipa_a}
+                      {t('index.teamA')}: {item.jogadores_equipa_a.join(', ')}
                     </Text>
                     <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                      {t('index.teamB')}: {item.jogadores_equipa_b}
+                      {t('index.teamB')}: {item.jogadores_equipa_b.join(', ')}
                     </Text>
                   </>
                 ) : (
                   <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                    {item.vencedor === 'A' ? item.jogadores_equipa_a : item.jogadores_equipa_b}
+                    {item.vencedor === 'A' ? item.jogadores_equipa_a.join(', ') : item.jogadores_equipa_b.join(', ')}
                   </Text>
                 )}
               </Text>
@@ -269,7 +269,7 @@ export default function ResultsScreen() {
             <View style={styles.teamsContainer}>
               <View style={styles.teamSection}>
                 <Text style={[styles.teamTitle, { color: theme.text }]}>{t('index.teamA')}</Text>
-                {item.jogadores_equipa_a.split(', ').map((player, index) => (
+                {item.jogadores_equipa_a.map((player, index) => (
                   <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>
                     {player}
                   </Text>
@@ -278,7 +278,7 @@ export default function ResultsScreen() {
 
               <View style={styles.teamSection}>
                 <Text style={[styles.teamTitle, { color: theme.text }]}>{t('index.teamB')}</Text>
-                {item.jogadores_equipa_b.split(', ').map((player, index) => (
+                {item.jogadores_equipa_b.map((player, index) => (
                   <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>
                     {player}
                   </Text>

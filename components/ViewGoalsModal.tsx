@@ -7,6 +7,7 @@ import { X } from 'lucide-react-native';
 import { useLanguage } from '../lib/language';
 
 type PlayerGoals = {
+  id_jogador: string;
   nome: string;
   golos: number;
   equipa: string;
@@ -37,7 +38,7 @@ export function ViewGoalsModal({ visible, onClose, gameId, clusterId }: ViewGoal
   const loadPlayers = async () => {
     try {
       setLoading(true);
-      // Buscar o jogo para identificar os jogadores das equipas
+      // Buscar o jogo para identificar os UUIDs dos jogadores das equipas
       const { data: gameData, error: gameError } = await supabase
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
@@ -47,36 +48,65 @@ export function ViewGoalsModal({ visible, onClose, gameId, clusterId }: ViewGoal
 
       if (gameError) throw gameError;
 
-      // Buscar os golos existentes
+      // Buscar os golos existentes COM JOIN para obter nome
       const { data: goalsData, error: goalsError } = await supabase
         .from('golos_por_jogador')
-        .select('nome_jogador, numero_golos')
+        .select(`
+          numero_golos,
+          id_jogador,
+          jogadores!inner (
+            nome
+          )
+        `)
         .eq('id_jogo', gameId)
         .eq('cluster_uuid', clusterId);
 
       if (goalsError) throw goalsError;
 
-      // Criar um mapa de golos por jogador
+      // Criar um mapa de golos por id_jogador
       const goalsMap = new Map(
-        goalsData?.map(goal => [goal.nome_jogador, goal.numero_golos]) || []
+        goalsData?.map(goal => [
+          goal.id_jogador,
+          // @ts-ignore
+          { numero_golos: goal.numero_golos, nome: goal.jogadores?.nome }
+        ]) || []
       );
 
-      // Converter as strings de jogadores em arrays
-      const jogadoresEquipaA = gameData.jogadores_equipa_a.split(', ');
-      const jogadoresEquipaB = gameData.jogadores_equipa_b.split(', ');
+      // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
+      const jogadoresEquipaA: string[] = gameData.jogadores_equipa_a || [];
+      const jogadoresEquipaB: string[] = gameData.jogadores_equipa_b || [];
+
+      // Buscar informações dos jogadores
+      const allPlayerIds = [...jogadoresEquipaA, ...jogadoresEquipaB];
+      const { data: playersData } = await supabase
+        .from('jogadores')
+        .select('id_jogador, nome')
+        .in('id_jogador', allPlayerIds);
+
+      const playersMap = new Map(
+        playersData?.map(p => [p.id_jogador, p.nome]) || []
+      );
 
       // Criar a lista de jogadores com suas respectivas equipas e golos
-      const playersList = [
-        ...jogadoresEquipaA.map((nome: string) => ({ 
-          nome, 
-          equipa: 'A', 
-          golos: goalsMap.get(nome) || 0 
-        })),
-        ...jogadoresEquipaB.map((nome: string) => ({ 
-          nome, 
-          equipa: 'B', 
-          golos: goalsMap.get(nome) || 0 
-        }))
+      const playersList: PlayerGoals[] = [
+        ...jogadoresEquipaA.map((id_jogador: string) => {
+          const goalInfo = goalsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            equipa: 'A',
+            golos: goalInfo?.numero_golos || 0
+          };
+        }),
+        ...jogadoresEquipaB.map((id_jogador: string) => {
+          const goalInfo = goalsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            equipa: 'B',
+            golos: goalInfo?.numero_golos || 0
+          };
+        })
       ];
 
       setPlayerGoals(playersList);

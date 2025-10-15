@@ -7,6 +7,7 @@ import { Toast } from './Toast';
 import { X, ChevronUp, ChevronDown } from 'lucide-react-native';
 
 type PlayerGoals = {
+  id_jogador: string;
   nome: string;
   golos: string;
   equipa: string;
@@ -45,7 +46,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
   const loadPlayers = async () => {
     try {
       setLoading(true);
-      // Buscar o jogo para identificar os jogadores das equipas
+      // Buscar o jogo para identificar os UUIDs dos jogadores das equipas
       const { data: gameData, error: gameError } = await supabase
         .from('resultados_jogos')
         .select('jogadores_equipa_a, jogadores_equipa_b')
@@ -55,36 +56,65 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
 
       if (gameError) throw gameError;
 
-      // Buscar os golos existentes
+      // Buscar os golos existentes COM JOIN para obter nome
       const { data: goalsData, error: goalsError } = await supabase
         .from('golos_por_jogador')
-        .select('nome_jogador, numero_golos')
+        .select(`
+          numero_golos,
+          id_jogador,
+          jogadores!inner (
+            nome
+          )
+        `)
         .eq('id_jogo', gameId)
         .eq('cluster_uuid', clusterId);
 
       if (goalsError) throw goalsError;
 
-      // Criar um mapa de golos por jogador
+      // Criar um mapa de golos por id_jogador
       const goalsMap = new Map(
-        goalsData?.map(goal => [goal.nome_jogador, goal.numero_golos]) || []
+        goalsData?.map(goal => [
+          goal.id_jogador,
+          // @ts-ignore
+          { numero_golos: goal.numero_golos, nome: goal.jogadores?.nome }
+        ]) || []
       );
 
-      // Converter as strings de jogadores em arrays
-      const jogadoresEquipaA = gameData.jogadores_equipa_a.split(', ');
-      const jogadoresEquipaB = gameData.jogadores_equipa_b.split(', ');
+      // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
+      const jogadoresEquipaA: string[] = gameData.jogadores_equipa_a || [];
+      const jogadoresEquipaB: string[] = gameData.jogadores_equipa_b || [];
+
+      // Buscar informações dos jogadores
+      const allPlayerIds = [...jogadoresEquipaA, ...jogadoresEquipaB];
+      const { data: playersData } = await supabase
+        .from('jogadores')
+        .select('id_jogador, nome')
+        .in('id_jogador', allPlayerIds);
+
+      const playersMap = new Map(
+        playersData?.map(p => [p.id_jogador, p.nome]) || []
+      );
 
       // Criar a lista de jogadores com suas respectivas equipas e golos
-      const playersList = [
-        ...jogadoresEquipaA.map((nome: string) => ({ 
-          nome, 
-          equipa: 'A', 
-          golos: goalsMap.get(nome)?.toString() || '0' 
-        })),
-        ...jogadoresEquipaB.map((nome: string) => ({ 
-          nome, 
-          equipa: 'B', 
-          golos: goalsMap.get(nome)?.toString() || '0' 
-        }))
+      const playersList: PlayerGoals[] = [
+        ...jogadoresEquipaA.map((id_jogador: string) => {
+          const goalInfo = goalsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            equipa: 'A',
+            golos: goalInfo?.numero_golos?.toString() || '0'
+          };
+        }),
+        ...jogadoresEquipaB.map((id_jogador: string) => {
+          const goalInfo = goalsMap.get(id_jogador);
+          return {
+            id_jogador,
+            nome: playersMap.get(id_jogador) || 'Desconhecido',
+            equipa: 'B',
+            golos: goalInfo?.numero_golos?.toString() || '0'
+          };
+        })
       ];
 
       setPlayerGoals(playersList);
@@ -108,10 +138,10 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     setToastConfig(prev => ({ ...prev, visible: false }));
   };
 
-  const incrementGoals = (playerName: string) => {
+  const incrementGoals = (playerId: string) => {
     setPlayerGoals(prev => 
       prev.map(p => {
-        if (p.nome === playerName) {
+        if (p.id_jogador === playerId) {
           const currentGoals = parseInt(p.golos) || 0;
           return { ...p, golos: Math.min(currentGoals + 1, 99).toString() };
         }
@@ -120,10 +150,10 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
     );
   };
 
-  const decrementGoals = (playerName: string) => {
+  const decrementGoals = (playerId: string) => {
     setPlayerGoals(prev => 
       prev.map(p => {
-        if (p.nome === playerName) {
+        if (p.id_jogador === playerId) {
           const currentGoals = parseInt(p.golos) || 0;
           return { ...p, golos: Math.max(currentGoals - 1, 0).toString() };
         }
@@ -147,12 +177,12 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
         .upsert(
           {
             cluster_uuid: clusterId,
-            nome_jogador: player.nome,
+            id_jogador: player.id_jogador,
             id_jogo: gameId,
             numero_golos: numGolos
           },
           {
-            onConflict: 'id_jogo,cluster_uuid,nome_jogador'
+            onConflict: 'id_jogo,cluster_uuid,id_jogador'
           }
         );
 
@@ -191,7 +221,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
               <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogador encontrado</Text>
             ) : (
               playerGoals.map((player, index) => (
-                <View key={index} style={styles.playerRow}>
+                <View key={player.id_jogador} style={styles.playerRow}>
                   <View style={styles.playerInfo}>
                     <Text style={[styles.playerName, { color: theme.text }]}>{player.nome}</Text>
                     <Text style={[styles.teamName, { color: theme.secondary }]}>{player.equipa}</Text>
@@ -200,7 +230,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
                     <View style={styles.inputWithArrows}>
                       <TouchableOpacity
                         style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                        onPress={() => decrementGoals(player.nome)}
+                        onPress={() => decrementGoals(player.id_jogador)}
                         disabled={loading}
                       >
                         <ChevronDown size={20} color={theme.text} />
@@ -215,7 +245,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
                         onChangeText={(value) => {
                           if (/^\d*$/.test(value)) {
                             setPlayerGoals(prev => 
-                              prev.map(p => p.nome === player.nome ? { ...p, golos: value } : p)
+                              prev.map(p => p.id_jogador === player.id_jogador ? { ...p, golos: value } : p)
                             );
                           }
                         }}
@@ -226,7 +256,7 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
                       />
                       <TouchableOpacity
                         style={[styles.arrowButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-                        onPress={() => incrementGoals(player.nome)}
+                        onPress={() => incrementGoals(player.id_jogador)}
                         disabled={loading}
                       >
                         <ChevronUp size={20} color={theme.text} />

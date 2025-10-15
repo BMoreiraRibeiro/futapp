@@ -5,10 +5,11 @@ import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { Toast } from '../../components/Toast';
-import { Plus, Trash2, Eye, EyeOff, Cross } from 'lucide-react-native';
+import { Plus, Trash2, Eye, EyeOff, Cross, Check } from 'lucide-react-native';
 import { useLanguage } from '../../lib/language';
 
 type Player = {
+  id_jogador: string;
   nome: string;
   rating: number;
   visivel: boolean;
@@ -32,6 +33,7 @@ export default function PlayersScreen() {
   });
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [editSuccessId, setEditSuccessId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [playerRating, setPlayerRating] = useState('');
 
@@ -69,7 +71,7 @@ export default function PlayersScreen() {
       
       const { data, error } = await supabase
         .from('jogadores')
-        .select('*')
+        .select('id_jogador, nome, rating, visivel')
         .eq('cluster_uuid', clusterName)
         .order('nome');
 
@@ -94,7 +96,7 @@ export default function PlayersScreen() {
     }
   };
 
-  const handleDeletePlayer = async (nome: string) => {
+  const handleDeletePlayer = async (id_jogador: string, nome: string) => {
     Alert.alert(
       'Confirmar exclusão',
       `Tem certeza que deseja excluir o jogador ${nome}?`,
@@ -109,8 +111,7 @@ export default function PlayersScreen() {
               const { error } = await supabase
                 .from('jogadores')
                 .delete()
-                .eq('cluster_uuid', clusterName)
-                .eq('nome', nome);
+                .eq('id_jogador', id_jogador);
 
               if (error) throw error;
 
@@ -128,18 +129,16 @@ export default function PlayersScreen() {
     );
   };
 
-  const handleToggleVisibility = async (nome: string, currentVisibility: boolean) => {
+  const handleToggleVisibility = async (id_jogador: string, currentVisibility: boolean) => {
     try {
       setLoading(true);
       const { error } = await supabase
         .from('jogadores')
         .update({ visivel: !currentVisibility })
-        .eq('cluster_uuid', clusterName)
-        .eq('nome', nome);
+        .eq('id_jogador', id_jogador);
 
       if (error) throw error;
 
-      showToast(`Jogador ${!currentVisibility ? 'ativado' : 'desativado'} com sucesso!`, 'success');
       fetchPlayers();
     } catch (error) {
       console.error('Erro ao alterar visibilidade:', error);
@@ -172,6 +171,12 @@ export default function PlayersScreen() {
     const rating = parseInt(playerRating);
     if (isNaN(rating)) {
       showToast('Rating deve ser um número', 'error');
+      return;
+    }
+
+    // Validar rating entre 0 e 100
+    if (rating < 0 || rating > 100) {
+      showToast('Rating deve estar entre 0 e 100', 'error');
       return;
     }
 
@@ -235,10 +240,12 @@ export default function PlayersScreen() {
   };
 
   const handleUpdatePlayer = async (nome: string, rating: number) => {
+    if (!editingPlayer) return;
+    
     try {
       setLoading(true);
       console.log('✏️ Players: Atualizando jogador...');
-      console.log('✏️ Players: Nome original:', editingPlayer?.nome);
+      console.log('✏️ Players: ID:', editingPlayer.id_jogador);
       console.log('✏️ Players: Novo nome:', nome);
       console.log('✏️ Players: Novo rating:', rating);
       
@@ -249,18 +256,18 @@ export default function PlayersScreen() {
           rating: rating,
           visivel: true
         })
-        .eq('cluster_uuid', clusterName)
-        .eq('nome', editingPlayer?.nome);
+        .eq('id_jogador', editingPlayer.id_jogador);
 
       if (error) throw error;
 
-      console.log('✅ Players: Jogador atualizado');
-      showToast('Jogador atualizado com sucesso!', 'success');
-      setPlayerName('');
-      setPlayerRating('');
-      setEditingPlayer(null);
-      setModalVisible(false);
-      fetchPlayers();
+  console.log('✅ Players: Jogador atualizado');
+  setEditSuccessId(editingPlayer.id_jogador);
+  setPlayerName('');
+  setPlayerRating('');
+  setEditingPlayer(null);
+  setModalVisible(false);
+  fetchPlayers();
+  setTimeout(() => setEditSuccessId(null), 2000);
     } catch (error) {
       console.error('❌ Players: Erro ao atualizar jogador:', error);
       showToast('Erro ao atualizar jogador', 'error');
@@ -270,38 +277,43 @@ export default function PlayersScreen() {
   };
 
   const renderPlayer = ({ item }: { item: Player }) => (
-    <View style={[styles.playerCard, { backgroundColor: theme.cardBackground }]}>
-      <View style={styles.playerInfo}>
-        <Text style={[styles.playerName, { color: theme.text }]}>{item.nome}</Text>
-        <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {item.rating}</Text>
-      </View>
-      <View style={styles.playerActions}>
-        <TouchableOpacity
-          onPress={() => handleToggleVisibility(item.nome, item.visivel)}
-          style={[styles.actionButton, { backgroundColor: item.visivel ? theme.success : theme.error }]}
-        >
-          <Text style={styles.actionButtonText}>
-            {item.visivel ? t('players.available') : t('players.injured')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.primary }]}
-          onPress={() => handleEdit(item)}
-        >
-          <Text style={styles.actionButtonText}>{t('common.edit')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, { backgroundColor: theme.error }]}
-          onPress={() => handleDeletePlayer(item.nome)}
-        >
-          <Text style={styles.actionButtonText}>{t('common.delete')}</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.playerCard, { backgroundColor: theme.cardBackground }]}> 
+      <View style={styles.playerInfo}> 
+        <Text style={[styles.playerName, { color: theme.text }]}>{item.nome}</Text> 
+        <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {item.rating}</Text> 
+      </View> 
+      <View style={styles.playerActions}> 
+        <TouchableOpacity 
+          onPress={() => handleToggleVisibility(item.id_jogador, item.visivel)} 
+          style={[styles.actionButton, { backgroundColor: item.visivel ? theme.success : theme.error }]} 
+        > 
+          <Text style={styles.actionButtonText}> 
+            {item.visivel ? t('players.available') : t('players.injured')} 
+          </Text> 
+        </TouchableOpacity> 
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: theme.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} 
+          onPress={() => handleEdit(item)} 
+          disabled={!!editSuccessId} 
+        > 
+          {editSuccessId === item.id_jogador ? ( 
+            <Check size={20} color="#4ade80" style={{ marginRight: 4 }} /> 
+          ) : ( 
+            <Text style={styles.actionButtonText}>{t('common.edit')}</Text> 
+          )} 
+        </TouchableOpacity> 
+        <TouchableOpacity 
+          style={[styles.actionButton, { backgroundColor: theme.error }]} 
+          onPress={() => handleDeletePlayer(item.id_jogador, item.nome)} 
+        > 
+          <Text style={styles.actionButtonText}>{t('common.delete')}</Text> 
+        </TouchableOpacity> 
+      </View> 
     </View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <Image 
         source={require('../../assets/images/background3.jpg')}
         style={styles.backgroundImage}
@@ -316,7 +328,7 @@ export default function PlayersScreen() {
             console.log('➕ Players: Botão adicionar clicado');
             setEditingPlayer(null);
             setPlayerName('');
-            setPlayerRating('');
+            setPlayerRating('50'); // Rating default: 50
             setModalVisible(true);
           }}
         >
@@ -326,8 +338,8 @@ export default function PlayersScreen() {
         <FlatList
           data={players}
           renderItem={renderPlayer}
-          keyExtractor={(item) => item.nome}
-          contentContainerStyle={styles.listContainer}
+          keyExtractor={(item: Player) => item.id_jogador}
+          contentContainerStyle={styles.listContainer as any}
           refreshing={loading}
           onRefresh={fetchPlayers}
         />

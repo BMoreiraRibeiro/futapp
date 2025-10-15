@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Animated, Modal, Alert } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';
@@ -49,6 +50,7 @@ export default function SettingsScreen() {
   const [playerName, setPlayerName] = useState('');
   const [isEditingPlayerName, setIsEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState('');
+  const [playerNameSuccess, setPlayerNameSuccess] = useState(false);
   
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
@@ -97,16 +99,36 @@ export default function SettingsScreen() {
       }
       
       try {
-        const { data, error } = await supabase
-          .from('cluster_members')
+        // Tentar buscar por user_id (após migração)
+        let data, error;
+        const queryResult = await supabase
+          .from('jogadores')
           .select('nome')
           .eq('user_id', session.user.id)
           .eq('cluster_uuid', clusterName)
-          .single();
+          .maybeSingle();
+
+        data = queryResult.data;
+        error = queryResult.error;
+
+        // Se não encontrou por user_id (migração ainda não executada)
+        // Tentar buscar pelo nome do player_metadata
+        if (!data && session.user.user_metadata?.player_name) {
+          console.log('⚠️ user_id não encontrado, tentando pelo player_name...');
+          const fallbackResult = await supabase
+            .from('jogadores')
+            .select('nome')
+            .eq('nome', session.user.user_metadata.player_name)
+            .eq('cluster_uuid', clusterName)
+            .maybeSingle();
+          
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        }
 
         console.log('📊 Resultado da busca:', { data, error });
 
-        if (error) throw error;
+        if (error && error.code !== 'PGRST116') throw error;
         
         if (data?.nome) {
           console.log('✅ Nome encontrado:', data.nome);
@@ -114,9 +136,18 @@ export default function SettingsScreen() {
           setTempPlayerName(data.nome);
         } else {
           console.log('⚠️ Nome não definido na BD');
+          // Usar player_name do metadata como fallback
+          const fallbackName = session.user.user_metadata?.player_name || 'Jogador';
+          console.log('📝 Usando fallback:', fallbackName);
+          setPlayerName(fallbackName);
+          setTempPlayerName(fallbackName);
         }
       } catch (error) {
         console.error('❌ Erro ao carregar nome do jogador:', error);
+        // Último recurso: usar metadata
+        const fallbackName = session?.user?.user_metadata?.player_name || 'Jogador';
+        setPlayerName(fallbackName);
+        setTempPlayerName(fallbackName);
       }
     };
 
@@ -192,6 +223,83 @@ export default function SettingsScreen() {
   };
 
   const handleSavePlayerName = async () => {
+    console.log('Iniciando atualizacao do nome...');
+    console.log('Nome atual:', playerName);
+    console.log('Novo nome:', tempPlayerName.trim());
+    console.log('User ID:', session?.user?.id);
+    console.log('Cluster UUID:', clusterName);
+    
+    if (!tempPlayerName.trim()) {
+      showToast('Por favor, insira um nome', 'error');
+      return;
+    }
+
+    if (!session?.user?.id || !clusterName) {
+      console.error('Falta informacao de sessao ou cluster');
+      showToast('Informações de sessão não disponíveis', 'error');
+      return;
+    }
+
+    const trimmedNewName = tempPlayerName.trim();
+    
+    if (trimmedNewName === playerName) {
+      console.log('Nome nao foi alterado');
+      setIsEditingPlayerName(false);
+      return;
+    }
+
+    try {
+      // 1. Verificar se o novo nome já existe em OUTRO jogador (diferente user_id)
+      console.log('Verificando se o novo nome ja existe...');
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('jogadores')
+        .select('nome, user_id')
+        .eq('nome', trimmedNewName)
+        .eq('cluster_uuid', clusterName)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Erro ao verificar novo nome:', checkError);
+        throw checkError;
+      }
+
+      // Se encontrou E é de outro user, bloqueia
+      if (existingPlayer && existingPlayer.user_id !== session.user.id) {
+        console.warn('Nome ja existe noutro jogador');
+        showToast('Este nome já está em uso por outro jogador. Por favor, escolha outro.', 'error');
+        return;
+      }
+
+      console.log('Nome disponivel');
+
+      // 2. Atualizar o nome do jogador usando user_id e cluster_uuid
+      console.log('Atualizando nome do jogador...');
+      const { error: updateError } = await supabase
+        .from('jogadores')
+        .update({ nome: trimmedNewName })
+        .eq('user_id', session.user.id)
+        .eq('cluster_uuid', clusterName);
+
+      if (updateError) {
+        console.error('Erro ao atualizar nome:', updateError);
+        throw updateError;
+      }
+
+      console.log('Nome atualizado com sucesso');
+
+      // 3. Atualizar estado local
+  setPlayerName(trimmedNewName);
+  setIsEditingPlayerName(false);
+  setPlayerNameSuccess(true);
+  setTimeout(() => setPlayerNameSuccess(false), 2000);
+      
+    } catch (error: any) {
+      console.error('Erro ao atualizar nome do jogador:', error);
+      showToast(error.message || 'Erro ao atualizar nome', 'error');
+    }
+  };
+
+  const handleSavePlayerName_OLD = async () => {
     console.log('🔄 handleSavePlayerName - Iniciando atualização do nome...');
     console.log('📝 Nome atual:', playerName);
     console.log('📝 Novo nome:', tempPlayerName.trim());
@@ -241,115 +349,48 @@ export default function SettingsScreen() {
 
       console.log('✅ Nome disponível');
 
-      // 2. Atualizar o nome em cluster_members
-      console.log('🔄 Atualizando cluster_members...');
-      const { error: updateMemberError } = await supabase
-        .from('cluster_members')
-        .update({ nome: trimmedNewName })
-        .eq('cluster_uuid', clusterName)
-        .eq('user_id', session.user.id);
+      // 2. NÃO atualizar cluster_members - essa tabela não tem coluna 'nome'
+      // Apenas atualizar na tabela jogadores (passo 3 abaixo)
+      console.log('✅ Pulando atualização de cluster_members (coluna nome não existe)');
 
-      if (updateMemberError) {
-        console.error('❌ Erro ao atualizar cluster_members:', updateMemberError);
-        throw updateMemberError;
-      }
-
-      console.log('✅ Nome atualizado em cluster_members');
-
-      // 3. Atualizar o nome na tabela jogadores
-      console.log('🔄 Atualizando jogadores...');
-      const { error: updatePlayerError } = await supabase
+      // 3. Verificar se existe jogador com o nome antigo
+      const { data: oldPlayer, error: oldPlayerError } = await supabase
         .from('jogadores')
-        .update({ nome: trimmedNewName })
+        .select('nome, rating, visivel')
         .eq('nome', playerName)
-        .eq('cluster_uuid', clusterName);
+        .eq('cluster_uuid', clusterName)
+        .maybeSingle();
 
-      if (updatePlayerError) {
-        console.error('❌ Erro ao atualizar jogadores:', updatePlayerError);
+      if (oldPlayerError && oldPlayerError.code !== 'PGRST116') {
+        console.error('❌ Erro ao buscar jogador antigo:', oldPlayerError);
+        throw oldPlayerError;
+      }
+
+      if (oldPlayer) {
+        console.log('🔄 Jogador antigo encontrado, criando novo...');
         
-        // Reverter mudança de nome em cluster_members
-        await supabase
-          .from('cluster_members')
-          .update({ nome: playerName })
-          .eq('cluster_uuid', clusterName)
-          .eq('user_id', session.user.id);
-        
-        throw updatePlayerError;
-      }
+        // 4. Criar novo jogador com o novo nome
+        const { error: newPlayerError } = await supabase
+          .from('jogadores')
+          .insert({
+            nome: trimmedNewName,
+            cluster_uuid: clusterName,
+            rating: oldPlayer.rating || 1000,
+            visivel: oldPlayer.visivel !== false
+          });
 
-      console.log('✅ Nome atualizado em jogadores');
-
-      // 4. Atualizar referências em golos_por_jogador
-      console.log('🔄 Atualizando golos_por_jogador...');
-      const { error: updateGolosError } = await supabase
-        .from('golos_por_jogador')
-        .update({ nome_jogador: trimmedNewName })
-        .eq('nome_jogador', playerName)
-        .eq('cluster_uuid', clusterName);
-
-      if (updateGolosError) {
-        console.error('⚠️ Erro ao atualizar golos_por_jogador:', updateGolosError);
-        // Não faz rollback aqui pois pode não ter jogos registrados
-      } else {
-        console.log('✅ Golos_por_jogador atualizado');
-      }
-
-      // 5. Atualizar referências em calotes_jogo
-      console.log('🔄 Atualizando calotes_jogo...');
-      const { error: updateCalotesError } = await supabase
-        .from('calotes_jogo')
-        .update({ nome_jogador: trimmedNewName })
-        .eq('nome_jogador', playerName)
-        .eq('cluster_uuid', clusterName);
-
-      if (updateCalotesError) {
-        console.error('⚠️ Erro ao atualizar calotes_jogo:', updateCalotesError);
-        // Não faz rollback aqui pois pode não ter jogos registrados
-      } else {
-        console.log('✅ Calotes_jogo atualizado');
-      }
-
-      // 6. Atualizar referências em resultados_jogos (nas strings de equipes)
-      console.log('🔄 Atualizando resultados_jogos...');
-      const { data: jogos, error: jogosError } = await supabase
-        .from('resultados_jogos')
-        .select('id_jogo, jogadores_equipa_a, jogadores_equipa_b')
-        .eq('cluster_uuid', clusterName);
-
-      if (!jogosError && jogos) {
-        for (const jogo of jogos) {
-          let updated = false;
-          let newEquipaA = jogo.jogadores_equipa_a;
-          let newEquipaB = jogo.jogadores_equipa_b;
-
-          // Substituir nas equipas (formato: "nome1, nome2, nome3")
-          if (jogo.jogadores_equipa_a && jogo.jogadores_equipa_a.includes(playerName)) {
-            const equipaA = jogo.jogadores_equipa_a.split(', ');
-            newEquipaA = equipaA.map((nome: string) => nome === playerName ? trimmedNewName : nome).join(', ');
-            updated = true;
-          }
-
-          if (jogo.jogadores_equipa_b && jogo.jogadores_equipa_b.includes(playerName)) {
-            const equipaB = jogo.jogadores_equipa_b.split(', ');
-            newEquipaB = equipaB.map((nome: string) => nome === playerName ? trimmedNewName : nome).join(', ');
-            updated = true;
-          }
-
-          if (updated) {
-            await supabase
-              .from('resultados_jogos')
-              .update({
-                jogadores_equipa_a: newEquipaA,
-                jogadores_equipa_b: newEquipaB
-              })
-              .eq('id_jogo', jogo.id_jogo)
-              .eq('cluster_uuid', clusterName);
-          }
+        if (newPlayerError) {
+          console.error('❌ Erro ao criar novo jogador:', newPlayerError);
+          // NÃO reverter cluster_members - essa tabela não tem coluna 'nome'
+          throw newPlayerError;
         }
-        console.log('✅ Resultados_jogos atualizado');
+
+        console.log('✅ Novo jogador criado');
+      } else {
+        console.log('⚠️ Jogador antigo não encontrado');
       }
 
-      // 7. Atualizar estado local
+      // 5. Atualizar estado local
       setPlayerName(trimmedNewName);
       setIsEditingPlayerName(false);
       showToast('Nome atualizado com sucesso!', 'success');
@@ -655,12 +696,17 @@ export default function SettingsScreen() {
                     )}
                   </View>
                   {isEditingPlayerName ? (
-                    <View style={styles.editActions}>
+                    <View style={isEditingPlayerName ? styles.editActions : { flexDirection: 'row', alignItems: 'center' }}>
                       <TouchableOpacity
                         style={[styles.profileSaveButton, { backgroundColor: theme.primary }]}
                         onPress={handleSavePlayerName}
+                        disabled={playerNameSuccess}
                       >
-                        <Save size={18} color="#ffffff" />
+                        {playerNameSuccess ? (
+                          <Check size={18} color="#4ade80" />
+                        ) : (
+                          <Save size={18} color="#ffffff" />
+                        )}
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.profileCancelButton, { backgroundColor: theme.error }]}
@@ -668,17 +714,24 @@ export default function SettingsScreen() {
                           setIsEditingPlayerName(false);
                           setTempPlayerName(playerName);
                         }}
+                        disabled={playerNameSuccess}
                       >
                         <X size={18} color="#ffffff" />
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <TouchableOpacity
-                      style={[styles.editButton, { backgroundColor: theme.secondary }]}
-                      onPress={() => setIsEditingPlayerName(true)}
-                    >
-                      <Edit2 size={18} color={theme.text} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {playerNameSuccess && (
+                        <Check size={18} color="#4ade80" style={{ marginRight: 8 }} />
+                      )}
+                      <TouchableOpacity
+                        style={[styles.editButton, { backgroundColor: theme.secondary }]}
+                        onPress={() => setIsEditingPlayerName(true)}
+                        disabled={playerNameSuccess}
+                      >
+                        <Edit2 size={18} color={theme.text} />
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
               </View>

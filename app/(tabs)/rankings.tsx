@@ -98,11 +98,15 @@ export default function RankingsScreen() {
         .select('*')
         .eq('cluster_uuid', clusterName);
 
-      // Query base para gols com JOIN para pegar a data
+      // Query base para gols com JOIN para pegar a data E o nome do jogador
       let goalsQuery = supabase
         .from('golos_por_jogador')
         .select(`
-          *,
+          numero_golos,
+          id_jogador,
+          jogadores!inner (
+            nome
+          ),
           resultados_jogos!inner (
             data
           )
@@ -142,14 +146,29 @@ export default function RankingsScreen() {
       // 3. Processar os dados para criar as estatísticas
       const playerStats = new Map<string, PlayerStats>();
 
+      // Primeiro, buscar todos os jogadores para ter o mapeamento id -> nome
+      const { data: allPlayers } = await supabase
+        .from('jogadores')
+        .select('id_jogador, nome')
+        .eq('cluster_uuid', clusterName);
+
+      const playerIdToName = new Map(
+        allPlayers?.map(p => [p.id_jogador, p.nome]) || []
+      );
+
       // Inicializar estatísticas para todos os jogadores que participaram de jogos
       games?.forEach(game => {
-        const playersA = game.jogadores_equipa_a.split(', ');
-        const playersB = game.jogadores_equipa_b.split(', ');
-        [...playersA, ...playersB].forEach(player => {
-          if (!playerStats.has(player)) {
-            playerStats.set(player, {
-              nome: player,
+        // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
+        const playersA = game.jogadores_equipa_a || [];
+        const playersB = game.jogadores_equipa_b || [];
+        
+        [...playersA, ...playersB].forEach(playerId => {
+          const playerName = playerIdToName.get(playerId);
+          if (!playerName) return;
+          
+          if (!playerStats.has(playerName)) {
+            playerStats.set(playerName, {
+              nome: playerName,
               jogos: 0,
               vitorias: 0,
               empates: 0,
@@ -157,15 +176,15 @@ export default function RankingsScreen() {
               golos: 0
             });
           }
-          const stats = playerStats.get(player)!;
+          const stats = playerStats.get(playerName)!;
           stats.jogos++;
 
           if (game.vencedor) {
             if (game.vencedor === 'E') {
               stats.empates++;
             } else if (
-              (game.vencedor === 'A' && playersA.includes(player)) ||
-              (game.vencedor === 'B' && playersB.includes(player))
+              (game.vencedor === 'A' && playersA.includes(playerId)) ||
+              (game.vencedor === 'B' && playersB.includes(playerId))
             ) {
               stats.vitorias++;
             } else {
@@ -177,9 +196,13 @@ export default function RankingsScreen() {
 
       // Adicionar gols aos jogadores
       goals?.forEach(goal => {
-        const stats = playerStats.get(goal.nome_jogador);
-        if (stats) {
-          stats.golos += goal.numero_golos;
+        // @ts-ignore - o tipo do retorno está complexo, mas sabemos a estrutura
+        const playerName = goal.jogadores?.nome;
+        if (playerName) {
+          const stats = playerStats.get(playerName);
+          if (stats) {
+            stats.golos += goal.numero_golos;
+          }
         }
       });
 

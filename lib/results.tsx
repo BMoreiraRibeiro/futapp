@@ -5,8 +5,8 @@ type GameResult = {
   id_jogo: string;
   data: string;
   vencedor: 'A' | 'B' | 'E' | null;
-  jogadores_equipa_a: string;
-  jogadores_equipa_b: string;
+  jogadores_equipa_a: string[]; // Array de nomes dos jogadores
+  jogadores_equipa_b: string[]; // Array de nomes dos jogadores
 };
 
 type ResultsContextType = {
@@ -35,14 +35,39 @@ export function ResultsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const { data, error } = await supabase
+      // Buscar resultados com arrays de UUIDs
+      const { data: rawData, error } = await supabase
         .from('resultados_jogos')
-        .select('*')
+        .select('id_jogo, data, vencedor, jogadores_equipa_a, jogadores_equipa_b')
         .eq('cluster_uuid', clusterId)
         .order('data', { ascending: false });
 
       if (error) throw error;
-      setResults(data || []);
+
+      // Converter arrays de UUIDs para arrays de nomes
+      const processedResults = await Promise.all(
+        (rawData || []).map(async (game) => {
+          // Buscar nomes dos jogadores da equipa A
+          const { data: playersA } = await supabase
+            .from('jogadores')
+            .select('nome')
+            .in('id_jogador', game.jogadores_equipa_a || []);
+
+          // Buscar nomes dos jogadores da equipa B
+          const { data: playersB } = await supabase
+            .from('jogadores')
+            .select('nome')
+            .in('id_jogador', game.jogadores_equipa_b || []);
+
+          return {
+            ...game,
+            jogadores_equipa_a: playersA?.map(p => p.nome) || [],
+            jogadores_equipa_b: playersB?.map(p => p.nome) || [],
+          };
+        })
+      );
+
+      setResults(processedResults);
     } catch (error) {
       console.error('Erro ao buscar resultados:', error);
       setResults([]);

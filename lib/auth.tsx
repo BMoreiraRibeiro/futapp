@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user.id) {
         const { data: member, error: memberError } = await supabase
           .from('cluster_members')
-          .select('cluster_uuid, nome, admin')
+          .select('cluster_uuid, admin')
           .eq('user_id', session.user.id)
           .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
@@ -224,7 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Busca informações do clube logo após o login
         const { data: member, error: memberError } = await supabase
           .from('cluster_members')
-          .select('cluster_uuid, nome, admin')
+          .select('cluster_uuid, admin')
           .eq('user_id', data.session.user.id)
           .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 

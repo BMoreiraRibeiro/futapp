@@ -72,10 +72,17 @@ export default function FinancesScreen() {
       if (gamesError) throw gamesError;
       console.log('📋 Jogos encontrados:', gamesData?.length);
 
-      // Buscar calotes de todos os jogos
+      // Buscar calotes de todos os jogos COM JOIN para obter nome do jogador
       const { data: calotesData, error: calotesError } = await supabase
         .from('calotes_jogo')
-        .select('id_jogo, nome_jogador, pago')
+        .select(`
+          id_jogo,
+          pago,
+          id_jogador,
+          jogadores!inner (
+            nome
+          )
+        `)
         .eq('cluster_uuid', clusterName);
 
       if (calotesError) throw calotesError;
@@ -86,7 +93,8 @@ export default function FinancesScreen() {
         const jogadoresDoJogo = calotesData
           ?.filter(c => c.id_jogo === game.id_jogo)
           .map(c => ({
-            nome: c.nome_jogador,
+            // @ts-ignore - o tipo está complexo mas sabemos a estrutura
+            nome: c.jogadores?.nome || 'Desconhecido',
             pago: c.pago || false
           })) || [];
         

@@ -108,7 +108,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           .insert([{
             cluster_uuid: clusterUuid,
             user_id: userId,
-            nome: playerName,
             admin: true
           }])
           .select();
@@ -149,19 +148,16 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           return;
         }
         
-        // Criar o jogador
+        // Criar o jogador com user_id
         console.warn('➕ Cluster: Criando jogador...');
         const { error: playerError } = await supabase
           .from('jogadores')
           .insert({
             nome: playerName,
             cluster_uuid: clusterUuid,
-            rating: 1000,
-            numero_jogos: 0,
-            numero_vitorias: 0,
-            empates: 0,
-            derrotas: 0,
-            golos_marcados: 0
+            user_id: userId,
+            rating: 50,
+            visivel: true
           });
 
         if (playerError) {
@@ -221,7 +217,6 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           .insert({
             cluster_uuid: clusterUuid,
             user_id: userId,
-            nome: playerName,
             admin: false
           });
 
@@ -232,13 +227,13 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
 
         console.warn('✅ Cluster: Usuário adicionado com sucesso ao clube:', clusterUuid);
         
-        // Verificar se já existe um jogador com este nome no cluster
-        const { data: existingPlayerInCluster, error: playerCheckError } = await supabase
+        // Verificar se já existe um jogador para este user_id neste cluster
+        const { data: existingPlayerByUser, error: playerCheckError } = await supabase
           .from('jogadores')
-          .select('nome')
-          .eq('nome', playerName)
+          .select('nome, user_id')
+          .eq('user_id', userId)
           .eq('cluster_uuid', clusterUuid)
-          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
+          .maybeSingle();
 
         // Ignora erro PGRST116 (nenhum resultado encontrado)
         if (playerCheckError && playerCheckError.code !== 'PGRST116') {
@@ -246,8 +241,29 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           throw playerCheckError;
         }
 
-        if (existingPlayerInCluster) {
-          console.warn('⚠️ Cluster: Nome de jogador já existe neste clube');
+        if (existingPlayerByUser) {
+          console.warn('⚠️ Cluster: Este user já tem um jogador neste clube:', existingPlayerByUser.nome);
+          // O user já está neste cluster, só precisa atualizar o estado
+          await updateClusterState();
+          onComplete();
+          return;
+        }
+
+        // Verificar se o nome já está em uso por OUTRO user
+        const { data: existingPlayerByName, error: nameCheckError } = await supabase
+          .from('jogadores')
+          .select('nome, user_id')
+          .eq('nome', playerName)
+          .eq('cluster_uuid', clusterUuid)
+          .maybeSingle();
+
+        if (nameCheckError && nameCheckError.code !== 'PGRST116') {
+          console.error('❌ Erro ao verificar nome existente:', nameCheckError);
+          throw nameCheckError;
+        }
+
+        if (existingPlayerByName && existingPlayerByName.user_id !== userId) {
+          console.warn('⚠️ Cluster: Nome de jogador já existe neste clube (outro user)');
           // Guardar informação para usar depois se o usuário escolher mudar o nome
           setPendingClusterUuid(clusterUuid);
           setCurrentPlayerName(playerName);
@@ -257,7 +273,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           return;
         }
         
-        // Criar jogador
+        // Criar jogador com user_id
         console.warn('➕ Cluster: Criando jogador para usuário que se juntou...');
         
         const { error: playerError } = await supabase
@@ -265,12 +281,9 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           .insert({
             nome: playerName,
             cluster_uuid: clusterUuid,
-            rating: 1000,
-            numero_jogos: 0,
-            numero_vitorias: 0,
-            empates: 0,
-            derrotas: 0,
-            golos_marcados: 0
+            user_id: userId,
+            rating: 50,
+            visivel: true
           });
 
         if (playerError) {
@@ -381,42 +394,24 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         return;
       }
       
-      // Atualizar o nome em cluster_members
-      const { error: updateError } = await supabase
-        .from('cluster_members')
-        .update({ nome: trimmedNewName })
-        .eq('cluster_uuid', pendingClusterUuid)
-        .eq('user_id', userId);
-
-      if (updateError) {
-        console.error('❌ Erro ao atualizar nome em cluster_members:', updateError);
-        throw updateError;
-      }
-
-      console.log('✅ Nome atualizado em cluster_members');
+      // NÃO atualizar nome em cluster_members - essa tabela não tem coluna 'nome'
+      // O nome só existe na tabela 'jogadores'
       
-      // Criar jogador com o novo nome
+      console.log('✅ Preparando para criar jogador com novo nome');
+      
+      // Criar jogador com o novo nome e user_id
       const { error: playerError } = await supabase
         .from('jogadores')
         .insert({
           nome: trimmedNewName,
           cluster_uuid: pendingClusterUuid,
-          rating: 1000,
-          numero_jogos: 0,
-          numero_vitorias: 0,
-          empates: 0,
-          derrotas: 0,
-          golos_marcados: 0
+          user_id: userId,
+          rating: 50,
+          visivel: true
         });
 
       if (playerError) {
         console.error('❌ Erro ao criar jogador:', playerError);
-        // Reverter mudança de nome
-        await supabase
-          .from('cluster_members')
-          .update({ nome: currentPlayerName })
-          .eq('cluster_uuid', pendingClusterUuid)
-          .eq('user_id', userId);
         throw playerError;
       }
 

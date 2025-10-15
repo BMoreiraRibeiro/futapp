@@ -12,6 +12,7 @@ import { useResults } from '../../lib/results';
 import { useLanguage } from '../../lib/language';
 
 type Player = {
+  id_jogador: string;
   nome: string;
   rating: number;
   visivel: boolean;
@@ -124,7 +125,7 @@ export default function IndexScreen() {
       setLoading(true);
       const { data, error } = await supabase
         .from('jogadores')
-        .select('*')
+        .select('id_jogador, nome, rating, visivel')
         .eq('cluster_uuid', clusterName)
         .eq('visivel', true)
         .order('nome');
@@ -247,8 +248,7 @@ export default function IndexScreen() {
     }
 
     if (bestTeams) {
-      setTeams(bestTeams);
-      showToast(`Equipas sorteadas com diferença de ${bestVariation.toFixed(1)}`, 'info');
+  setTeams(bestTeams);
     } else {
       showToast('Não foi possível encontrar equipes balanceadas', 'error');
     }
@@ -273,8 +273,8 @@ export default function IndexScreen() {
           {
             cluster_uuid: clusterName,
             data: new Date().toISOString().split('T')[0],
-            jogadores_equipa_a: teams[0].players.map(p => p.nome).join(', '),
-            jogadores_equipa_b: teams[1].players.map(p => p.nome).join(', '),
+            jogadores_equipa_a: teams[0].players.map(p => p.id_jogador),
+            jogadores_equipa_b: teams[1].players.map(p => p.id_jogador),
             vencedor: null
           }
         ])
@@ -289,7 +289,7 @@ export default function IndexScreen() {
         
         const calotesRecords = allPlayers.map(player => ({
           cluster_uuid: clusterName,
-          nome_jogador: player.nome,
+          id_jogador: player.id_jogador,
           id_jogo: gameId,
           pago: false
         }));
@@ -438,14 +438,17 @@ export default function IndexScreen() {
         </TouchableOpacity>
       </View>
 
-      {toastConfig.visible && (
-        <Toast
-          visible={toastConfig.visible}
-          message={toastConfig.message}
-          type={toastConfig.type}
-          onHide={hideToast}
-        />
-      )}
+      {/* Toast deve estar dentro de um View para evitar erro de sintaxe */}
+      <View pointerEvents="box-none">
+        {toastConfig.visible && (
+          <Toast
+            visible={toastConfig.visible}
+            message={toastConfig.message}
+            type={toastConfig.type}
+            onHide={hideToast}
+          />
+        )}
+      </View>
     </View>
   );
 }
