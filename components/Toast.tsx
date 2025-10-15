@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Text, StyleSheet, Animated } from 'react-native';
 
 type ToastProps = {
   message: string;

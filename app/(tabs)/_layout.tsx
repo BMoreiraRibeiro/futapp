@@ -1,6 +1,6 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Shuffle, Trophy, Users, History, Settings, Bold, LucideBold, Home, BarChart2, DollarSign } from 'lucide-react-native';
-import { View, Text, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
+import { Shuffle, Trophy, Users, Settings, BarChart2, DollarSign } from 'lucide-react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
@@ -8,7 +8,6 @@ import { colors } from '../../lib/colors';
 import { useLanguage } from '../../lib/language';
 
 function Header() {
-  const { clusterDisplayName } = useAuth();
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const router = useRouter();
@@ -28,7 +27,7 @@ function Header() {
             />
           </View>
           <Text style={styles.headerTitle}>
-            Futebol às <Text style={styles.headerTitleHighlight}>quartas</Text>
+            Futebol às quartas
           </Text>
         </View>
         <TouchableOpacity 

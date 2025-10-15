@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { useEffect, useState, useCallback } from 'react';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, Text, StyleSheet, Animated, Image, Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -12,8 +12,8 @@ import { ResultsProvider } from '../lib/results';
 import { LanguageProvider } from '../lib/language';
 import * as SplashScreen from 'expo-splash-screen';
 import NetInfo from '@react-native-community/netinfo';
-import Constants from 'expo-constants';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as Linking from 'expo-linking';
 
 // Impede o escondimento automático do SplashScreen
 SplashScreen.preventAutoHideAsync().catch((error) => console.warn(error));
@@ -109,21 +109,50 @@ function RootLayoutNav() {
   
   // 🔍 MONITOR: Rastreia mudanças nos estados do Auth
   useEffect(() => {
-    console.log('📊 [_layout.tsx STATE] Auth estados:', {
-      isAuthenticated,
-      hasCluster,
-      clusterName,
-      sessionExists: !!session,
-      showClusterModal,
-      isValidating,
-      shouldRedirectToAuth
-    });
+    // Monitoramento de estados de autenticação
   }, [isAuthenticated, hasCluster, clusterName, session, showClusterModal, isValidating, shouldRedirectToAuth]);
+
+  // Handle deep links for email confirmation
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      
+      // Handle Supabase auth deep links
+      if (url.includes('access_token') || url.includes('refresh_token')) {
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) {
+            console.error('Erro ao processar deep link de auth:', error);
+          } else {
+            // Sessão processada via deep link
+          }
+        } catch (error) {
+          console.error('Erro ao processar deep link:', error);
+        }
+      }
+    };
+
+    // Handle initial URL when app opens
+    const getInitialURL = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      if (initialUrl) {
+        handleDeepLink({ url: initialUrl });
+      }
+    };
+
+    // Listen for deep links
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    
+    getInitialURL();
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // 🔍 MONITOR: Detecta quando hasCluster muda
   useEffect(() => {
-    console.log('🎯 [_layout.tsx] hasCluster mudou para:', hasCluster);
-    console.log('🎯 [_layout.tsx] showClusterModal atual:', showClusterModal);
+    // Monitoramento de mudanças no hasCluster
   }, [hasCluster]);
   
   // Esconde a barra de navegação do Android
@@ -135,7 +164,7 @@ function RootLayoutNav() {
           await NavigationBar.setVisibilityAsync('hidden');
         }
       } catch (error) {
-        console.log('Erro ao configurar barra de navegação:', error);
+        // Erro ao configurar barra de navegação
       }
     };
     
@@ -171,11 +200,10 @@ function RootLayoutNav() {
   useEffect(() => {
     const validateAuth = async () => {
       try {
-        console.log('🔍 validateAuth - Iniciando validação. isInitializing:', isInitializing, 'isAuthenticated:', isAuthenticated, 'hasCluster:', hasCluster);
+        // Iniciando validação
         
         // Aguarda o AuthProvider terminar de inicializar
         if (isInitializing) {
-          console.log('⏳ validateAuth - Ainda inicializando, aguardando...');
           return;
         }
 
@@ -184,14 +212,12 @@ function RootLayoutNav() {
 
         // 1. Verificar se tem internet
         if (!hasInternet) {
-          console.log('📡 validateAuth - Sem internet');
           setIsValidating(false);
           return;
         }
 
         // 2. Verificar se tem sessão válida
         if (!session || !isSessionValid()) {
-          console.log('🚫 validateAuth - Sessão inválida ou inexistente');
           setShouldRedirectToAuth(true);
           setShowClusterModal(false); // Esconde o modal ao redirecionar para auth
           setIsValidating(false);
@@ -200,8 +226,6 @@ function RootLayoutNav() {
 
         // 3. Se autenticado, verificar cluster
         if (isAuthenticated && session?.user.id) {
-          console.log('✅ validateAuth - Usuário autenticado, verificando cluster...');
-          
           // Adicionar pequeno delay para evitar flash visual
           await new Promise(resolve => setTimeout(resolve, 300));
           
@@ -225,7 +249,6 @@ function RootLayoutNav() {
 
           // Se tem um member, verificar se o cluster ainda existe
           if (member) {
-            console.log('🔍 validateAuth - Member encontrado, verificando se cluster existe...');
             const { data: cluster, error: clusterError } = await supabase
               .from('clusters')
               .select('cluster_uuid')
@@ -238,9 +261,7 @@ function RootLayoutNav() {
 
             if (cluster) {
               hasValidCluster = true;
-              console.log('✅ validateAuth - Cluster válido encontrado:', cluster.cluster_uuid);
             } else {
-              console.warn('⚠️ validateAuth - Cluster não existe mais, limpando member órfão...');
               // Cluster não existe mais, limpar o member órfão
               await supabase
                 .from('cluster_members')
@@ -249,20 +270,15 @@ function RootLayoutNav() {
             }
           }
 
-          console.log('🔍 validateAuth - Cluster válido?', hasValidCluster, 'Data:', member);
-
           if (hasValidCluster) {
-            console.log('✅ validateAuth - Utilizador com cluster, escondendo modal');
             setShowClusterModal(false); // Garante que o modal está escondido
             setShouldRedirectToAuth(false); // CRÍTICO: Garante que não redireciona
             await updateClusterState();
           } else {
-            console.log('📋 validateAuth - Utilizador sem cluster, mostrando ClusterModal');
             setShowClusterModal(true); // Mostra o modal sempre que não há cluster
             setShouldRedirectToAuth(false); // CRÍTICO: Não deve redirecionar para auth, apenas mostrar modal
           }
         } else {
-          console.log('🚫 validateAuth - Não autenticado');
           setShouldRedirectToAuth(true);
           setShowClusterModal(false);
         }
@@ -271,7 +287,6 @@ function RootLayoutNav() {
         setShouldRedirectToAuth(true);
         setShowClusterModal(false);
       } finally {
-        console.log('🏁 validateAuth - Validação concluída');
         setIsValidating(false);
       }
     };
@@ -280,7 +295,6 @@ function RootLayoutNav() {
   }, [isAuthenticated, session, hasInternet, isInitializing]);
 
   const handleClusterCreated = async () => {
-    console.log('🎉 Cluster criado/associado, atualizando estado');
     setShowClusterModal(false);
     // Atualiza o estado do cluster após criação/associação
     await updateClusterState();
@@ -298,21 +312,17 @@ function RootLayoutNav() {
 
   // Mostra modal de sem internet
   if (showNoInternetModal) {
-    console.log('🌐 [RENDER] Mostrando NoInternetModal');
     return <NoInternetModal visible={showNoInternetModal} onRetry={handleRetryConnection} />;
   }
 
   // Mostra o CustomSplashScreen enquanto está inicializando ou validando
   if (isInitializing || isValidating) {
-    console.log('⏳ [RENDER] Mostrando SplashScreen -', isInitializing ? 'Inicializando' : 'Validando');
     return <CustomSplashScreen message={isInitializing ? "Carregando..." : "Validando sessão..."} />;
   }
 
   // CRÍTICO: Se está autenticado MAS não tem cluster, mostra APENAS o ClusterModal
   // NÃO renderizar Stack ou tabs quando showClusterModal está true
   if (isAuthenticated && !shouldRedirectToAuth && showClusterModal && session) {
-    console.log('🎯 [RENDER] Renderizando APENAS ClusterModal (sem tabs)');
-    console.log('🎯 [RENDER] Condições: isAuth=', isAuthenticated, 'shouldRedirect=', shouldRedirectToAuth, 'showModal=', showClusterModal, 'hasSession=', !!session);
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <ClusterModal
@@ -326,9 +336,6 @@ function RootLayoutNav() {
 
   // VERIFICAÇÃO ADICIONAL: Se não tem cluster válido, NÃO renderizar as tabs
   if (isAuthenticated && !hasCluster && !showClusterModal) {
-    console.log('⚠️ [RENDER] Estado inconsistente detectado!');
-    console.log('⚠️ [RENDER] isAuth=', isAuthenticated, 'hasCluster=', hasCluster, 'showModal=', showClusterModal);
-    console.log('⚠️ [RENDER] Forçando re-validação...');
     // Força re-validação
     setIsValidating(true);
     return <CustomSplashScreen message="Re-validando..." />;
@@ -336,8 +343,6 @@ function RootLayoutNav() {
 
   // Em vez de usar router.replace, decidimos qual tela mostrar usando condicionais
   const renderingScreen = shouldRedirectToAuth || !isAuthenticated ? 'auth' : '(tabs)';
-  console.log('🎯 [RENDER] Renderizando Stack:', renderingScreen);
-  console.log('🎯 [RENDER] Motivo:', shouldRedirectToAuth ? 'shouldRedirectToAuth=true' : !isAuthenticated ? 'não autenticado' : 'autenticado com cluster');
   return (
     <ResultsProvider>
       <>
@@ -375,7 +380,6 @@ export default function RootLayout() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [appIsReady, setAppIsReady] = useState(false);
-  const [hasInternetConnection, setHasInternetConnection] = useState(true);
   const [showNoInternet, setShowNoInternet] = useState(false);
 
   useEffect(() => {
@@ -386,7 +390,6 @@ export default function RootLayout() {
         const isConnected = netInfoState.isConnected && netInfoState.isInternetReachable !== false;
         
         if (!isConnected) {
-          setHasInternetConnection(false);
           setShowNoInternet(true);
           setIsLoading(false);
           setAppIsReady(false);
@@ -394,7 +397,7 @@ export default function RootLayout() {
         }
 
         // 2. Testa a conexão com o Supabase
-        const { data, error } = await supabase.auth.getSession();
+        const { error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Erro ao conectar com Supabase:', error.message);
@@ -418,13 +421,12 @@ export default function RootLayout() {
     const isConnected = state.isConnected && state.isInternetReachable !== false;
     
     if (isConnected) {
-      setHasInternetConnection(true);
       setShowNoInternet(false);
       setIsLoading(true);
       
       // Reinicia a preparação
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { error } = await supabase.auth.getSession();
         if (error) {
           console.error('Erro ao conectar com Supabase:', error.message);
         }
@@ -489,7 +491,7 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
   },
   splashTextHighlight: {
-    color: '#4ade80',
+    color: '#ffffff',
     fontSize: 28,
     fontFamily: 'Inter_700Bold',
   },

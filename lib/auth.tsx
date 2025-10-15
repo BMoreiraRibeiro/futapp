@@ -3,7 +3,6 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useLanguage } from './language';
 
 type AuthContextType = {
   session: Session | null;
@@ -44,11 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [clusterName, setClusterName] = useState<string | null>(null);
   const [clusterDisplayName, setClusterDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const { t } = useLanguage();
 
   // 🔍 MONITOR: Rastreia TODAS as mudanças de estado
   useEffect(() => {
@@ -106,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      setIsSigningOut(true);
       console.log('🚪 signOut - Iniciando processo de logout...');
 
       // Limpa os dados locais PRIMEIRO
@@ -138,7 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('💥 signOut - Erro ao redirecionar:', routerError);
       }
     } finally {
-      setIsSigningOut(false);
     }
   };
 
@@ -199,67 +192,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setClusterName(null);
       setClusterDisplayName(null);
       setIsAdmin(false);
-    }
-  };
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('Erro no login:', error.message);
-        throw error;
-      }
-
-      if (data.session) {
-        setSession(data.session);
-        setIsAuthenticated(true);
-        
-        // Busca informações do clube logo após o login
-        const { data: member, error: memberError } = await supabase
-          .from('cluster_members')
-          .select('cluster_uuid, admin')
-          .eq('user_id', data.session.user.id)
-          .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
-
-        // Se houver erro E não for "nenhum resultado encontrado"
-        if (memberError && memberError.code !== 'PGRST116') {
-          console.error('Erro ao buscar clube:', memberError.message);
-        } else if (member) {
-          // Buscar o nome_cluster da tabela clusters
-          const { data: clusterData } = await supabase
-            .from('clusters')
-            .select('nome_cluster')
-            .eq('cluster_uuid', member.cluster_uuid)
-            .single();
-          
-          setHasCluster(true);
-          setClusterName(member.cluster_uuid);
-          setClusterDisplayName(clusterData?.nome_cluster || 'Cluster');
-          setIsAdmin(member.admin || false);
-        } else {
-          console.log('📋 Utilizador sem cluster após login');
-          setHasCluster(false);
-          setClusterName(null);
-          setClusterDisplayName(null);
-          setIsAdmin(false);
-        }
-
-        // NÃO fazer router.replace aqui - deixar o _layout.tsx decidir
-        // baseado na validação completa (session + cluster)
-        console.log('✅ Login bem-sucedido, aguardando validação no _layout');
-      }
-    } catch (error) {
-      console.error('Erro crítico no login:', error);
-      setError(error instanceof Error ? error.message : t('common.loginError'));
-    } finally {
-      setLoading(false);
     }
   };
 

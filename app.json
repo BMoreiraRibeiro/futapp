@@ -18,7 +18,17 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bmoreiraribeiro.fut"
+      "bundleIdentifier": "com.bmoreiraribeiro.fut",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "futapp"
+            ]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +36,18 @@
         "backgroundColor": "#1a1a1a"
       },
       "package": "com.bmoreiraribeiro.fut",
-      "newArchEnabled": false
+      "newArchEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "futapp"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

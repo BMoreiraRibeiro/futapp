@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, Image, Modal } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { Toast } from '../../components/Toast';
-import { Plus, Trash2, Eye, EyeOff, Cross, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { useLanguage } from '../../lib/language';
 
 type Player = {

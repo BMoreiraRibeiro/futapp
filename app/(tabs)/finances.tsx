@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { useLanguage } from '../../lib/language';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
-import { Trash2, DollarSign, ClipboardList } from 'lucide-react-native';
+import { Trash2, ClipboardList } from 'lucide-react-native';
 import { Toast } from '../../components/Toast';
 import { PaymentsModal } from '../../components/PaymentsModal';
 
@@ -21,7 +20,6 @@ type GameWithCalotes = {
 export default function FinancesScreen() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
-  const { t } = useLanguage();
   const { clusterName, isAdmin } = useAuth();
   const [games, setGames] = useState<GameWithCalotes[]>([]);
   const [loading, setLoading] = useState(false);

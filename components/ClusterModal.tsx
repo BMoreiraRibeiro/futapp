@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ClusterModalProps = {
   visible: boolean;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Redirect } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -125,7 +125,7 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
