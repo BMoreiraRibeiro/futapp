@@ -87,6 +87,11 @@ export default function ResultsScreen() {
         .sort((a, b) => parseInt(b) - parseInt(a)) || [];
 
       setAvailableYears(years);
+      // If there's no selected year set explicitly and the current year is present, default to it.
+      const currentYear = new Date().getFullYear().toString();
+      if (years.includes(currentYear)) {
+        setSelectedYear(currentYear);
+      }
     } catch (error) {
       console.error('Erro ao carregar anos:', error);
     }

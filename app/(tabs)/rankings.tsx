@@ -77,6 +77,11 @@ export default function RankingsScreen() {
         .sort((a, b) => b.localeCompare(a));
 
       setAvailableYears(years);
+      // Default to current year if available
+      const currentYear = new Date().getFullYear().toString();
+      if (years.includes(currentYear)) {
+        setSelectedYear(currentYear);
+      }
     } catch (error) {
       console.error('Erro ao carregar anos disponíveis:', error);
     }

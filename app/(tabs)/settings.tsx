@@ -1,9 +1,9 @@
 ﻿import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle } from 'lucide-react-native';
+import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle, Share as ShareIcon } from 'lucide-react-native';
 import { Check } from 'lucide-react-native';
 
 import { Toast } from '../../components/Toast';
@@ -42,6 +42,8 @@ export default function SettingsScreen() {
   // Estados para renomear cluster
   const [isRenamingCluster, setIsRenamingCluster] = useState(false);
   const [newClusterName, setNewClusterName] = useState('');
+  const [clusterRenameSuccess, setClusterRenameSuccess] = useState(false);
+  const [clusterRenameLoading, setClusterRenameLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
   
@@ -50,6 +52,8 @@ export default function SettingsScreen() {
   const [isEditingPlayerName, setIsEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState('');
   const [playerNameSuccess, setPlayerNameSuccess] = useState(false);
+  // New: cluster unique id to display in profile
+  const [clusterIdDisplay, setClusterIdDisplay] = useState<string | null>(null);
   
   // Estados temporários para edição
   const [tempRatingVariation, setTempRatingVariation] = useState('2');
@@ -151,6 +155,33 @@ export default function SettingsScreen() {
     loadPlayerName();
   }, [session, clusterName]);
 
+  // Load cluster unique id when profile modal opens
+  useEffect(() => {
+    const loadClusterId = async () => {
+      if (!showProfileModal || !clusterName) return;
+      try {
+        const { data, error } = await supabase
+          .from('clusters')
+          .select('id')
+          .eq('cluster_uuid', clusterName)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        if (data?.id) {
+          setClusterIdDisplay(String(data.id));
+        } else {
+          setClusterIdDisplay(null);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar ID do cluster:', err);
+        setClusterIdDisplay(null);
+      }
+    };
+
+    loadClusterId();
+  }, [showProfileModal, clusterName]);
+
   const saveAllSettings = async () => {
     if (!isAdmin) {
       showToast('Apenas administradores podem alterar as configurações', 'error');
@@ -179,6 +210,7 @@ export default function SettingsScreen() {
   };
 
   const handleRenameCluster = async () => {
+    console.log('DEBUG: handleRenameCluster called, newClusterName=', newClusterName);
     if (!newClusterName.trim()) {
       showToast('Por favor, insira um novo nome para o cluster', 'error');
       return;
@@ -189,6 +221,7 @@ export default function SettingsScreen() {
       return;
     }
 
+    setClusterRenameLoading(true);
     try {
       // Atualizar o nome de display do cluster (coluna 'nome_cluster')
       const { error } = await supabase
@@ -198,20 +231,21 @@ export default function SettingsScreen() {
 
       if (error) throw error;
 
-      showToast('Nome do cluster atualizado com sucesso!', 'success');
+  // Do not show a toast here; show inline success check like player name flow
       setIsRenamingCluster(false);
       setNewClusterName('');
-      
+  setClusterRenameSuccess(true);
+
       // Atualiza o nome do cluster no contexto de auth (atualiza o Header)
       await refreshClusterDisplayName();
-      
-      // Pequena pausa para garantir que o nome foi atualizado
-      setTimeout(() => {
-        showToast('O nome do cluster foi atualizado com sucesso!', 'success');
-      }, 300);
+
+  // Mostrar o check por 2s como no fluxo de alterar nome do jogador
+      setTimeout(() => setClusterRenameSuccess(false), 2000);
     } catch (error: any) {
       console.error('Erro ao renomear cluster:', error);
       showToast(error.message || 'Erro ao atualizar nome do cluster', 'error');
+    } finally {
+      setClusterRenameLoading(false);
     }
   };
 
@@ -494,7 +528,8 @@ export default function SettingsScreen() {
           </Text>
         </TouchableOpacity>
 
-        {toastConfig.visible && (
+        {/* Global toast: only show when profile modal is NOT open to avoid duplicate toasts */}
+        {!showProfileModal && toastConfig.visible && (
           <Toast
             visible={toastConfig.visible}
             message={toastConfig.message}
@@ -509,37 +544,166 @@ export default function SettingsScreen() {
         visible={showProfileModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowProfileModal(false)}
+        onRequestClose={() => {
+          setIsRenamingCluster(false);
+          setNewClusterName('');
+          setIsEditingPlayerName(false);
+          setTempPlayerName(playerName);
+          setShowProfileModal(false);
+        }}
+        onShow={() => {
+          // Reset editing states each time modal opens to avoid stale UI
+          setIsRenamingCluster(false);
+          setNewClusterName('');
+          setIsEditingPlayerName(false);
+          setTempPlayerName(playerName);
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
-            <View style={styles.modalHeader}>
+              <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
-              <TouchableOpacity onPress={() => setShowProfileModal(false)}>
+              <TouchableOpacity onPress={() => { hideToast(); setIsRenamingCluster(false); setNewClusterName(''); setIsEditingPlayerName(false); setTempPlayerName(playerName); setShowProfileModal(false); }}>
                 <X size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
               {/* Informações do Clube */}
-              <View style={[styles.profileSection, { borderBottomColor: theme.border }]}>
+              <View style={[styles.profileSection, { borderBottomColor: theme.border }]}> 
                 <Text style={[styles.profileLabel, { color: theme.text }]}>Clube</Text>
-                <Text style={[styles.profileValue, { color: theme.primary }]}>
-                  {clusterDisplayName || 'Carregando...'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                  <View style={{ flex: 1 }}>
+                    {!isRenamingCluster ? (
+                      <Text style={[styles.clubName, { color: theme.primary }]} numberOfLines={1} ellipsizeMode="tail">{clusterDisplayName || 'Carregando...'}</Text>
+                    ) : (
+                      <TextInput
+                        style={[styles.profileInput, { flex: 1, marginRight: 12, backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border }]}
+                        value={newClusterName}
+                        onChangeText={setNewClusterName}
+                        placeholder="Novo nome de exibição"
+                        placeholderTextColor={theme.placeholderText}
+                        autoFocus
+                      />
+                    )}
+                  </View>
+                  {isAdmin && (
+                    !isRenamingCluster ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                        {clusterRenameSuccess && (
+                          <Check size={18} color="#4ade80" style={{ marginRight: 8 }} />
+                        )}
+                        <TouchableOpacity
+                          style={[styles.editButton, { backgroundColor: theme.secondary }]}
+                          onPress={() => {
+                            setIsRenamingCluster(true);
+                            // Prefill input with current display name
+                            setNewClusterName(clusterDisplayName || '');
+                            // Reset success state when entering edit
+                            setClusterRenameSuccess(false);
+                          }}
+                          disabled={clusterRenameLoading || clusterRenameSuccess}
+                        >
+                          {/* Match icon size with player edit */}
+                          <Edit2 size={18} color={theme.text} />
+                        </TouchableOpacity>
+                      </View>
+                      ) : (
+                      <View style={{ flexDirection: 'row', gap: 8, marginLeft: 8, alignItems: 'center' }}>
+                        <TouchableOpacity
+                          style={[styles.profileSaveButton, { backgroundColor: theme.primary }]}
+                          onPress={handleRenameCluster}
+                          disabled={clusterRenameLoading || clusterRenameSuccess}
+                        >
+                          {clusterRenameSuccess ? (
+                            <Check size={18} color="#4ade80" />
+                          ) : (
+                            <Save size={18} color="#ffffff" />
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.profileCancelButton, { backgroundColor: theme.error }]}
+                          onPress={() => {
+                            setIsRenamingCluster(false);
+                            // Reset to current display name like player cancel
+                            setNewClusterName(clusterDisplayName || '');
+                          }}
+                          disabled={clusterRenameLoading || clusterRenameSuccess}
+                        >
+                          <X size={18} color="#ffffff" />
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  )}
+                </View>
               </View>
+
+              {/* ID do Clube separado com ações de copiar e partilhar */}
+              {clusterIdDisplay && (
+                <View style={[styles.profileSection, { borderBottomColor: theme.border }]}> 
+                  {/* club name shown above in the Clube section */}
+
+                  <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View>
+                      <Text style={[styles.profileLabel, { color: theme.text, fontSize: 13 }]}>ID do Clube</Text>
+                      <TouchableOpacity
+                        onPress={async () => {
+                          try {
+                            // @ts-ignore dynamic import
+                            const cb = await import('expo-clipboard').catch(() => null);
+                            if (cb && cb.setStringAsync) {
+                              await cb.setStringAsync(clusterIdDisplay);
+                              showToast('ID copiado', 'success');
+                            } else if ((navigator as any)?.clipboard && (navigator as any).clipboard.writeText) {
+                              await (navigator as any).clipboard.writeText(clusterIdDisplay);
+                              showToast('ID copiado', 'success');
+                            } else {
+                              showToast('Não foi possível copiar automaticamente. Copie manualmente.', 'info');
+                            }
+                          } catch (e) {
+                            showToast('Erro ao copiar o ID', 'error');
+                          }
+                        }}
+                      >
+                        <Text style={[styles.clubId, { color: theme.text }]}>{clusterIdDisplay}</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.profileSubValue, { color: theme.text, fontSize: 12, marginTop: 6 }]}>Use este ID para convidar outras pessoas a juntar-se ao clube.</Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 8, width: 56, justifyContent: 'flex-end' }}>
+                      <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                        onPress={async () => {
+                          try {
+                            const message = `Participe do meu clube! ID do clube: ${clusterIdDisplay}`;
+                            if ((navigator as any)?.share) {
+                              await (navigator as any).share({ title: 'ID do Clube', text: message });
+                              return;
+                            }
+                            await Share.share({ message, title: 'ID do Clube' });
+                          } catch (e) {
+                            Alert.alert('Erro', 'Não foi possível partilhar o ID');
+                          }
+                        }}
+                      >
+                        <ShareIcon size={18} color={'#ffffff'} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               {/* Nome do Jogador */}
               <View style={[styles.profileSection, { borderBottomColor: theme.border }]}>
-                <View style={styles.profileRow}>
+                <Text style={[styles.profileLabel, { color: theme.text }]}>Meu Nome</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.profileLabel, { color: theme.text }]}>Meu Nome</Text>
                     {isEditingPlayerName ? (
                       <TextInput
                         style={[
                           styles.profileInput,
                           { 
                             color: theme.text,
-                            backgroundColor: theme.background,
+                            backgroundColor: theme.inputBackground,
                             borderColor: theme.border
                           }
                         ]}
@@ -550,13 +714,14 @@ export default function SettingsScreen() {
                         autoFocus
                       />
                     ) : (
-                      <Text style={[styles.profileValue, { color: theme.text }]}>
+                      <Text style={[styles.profileValue, { color: theme.text }]} numberOfLines={1} ellipsizeMode="tail">
                         {playerName || 'Não definido'}
                       </Text>
                     )}
                   </View>
+
                   {isEditingPlayerName ? (
-                    <View style={isEditingPlayerName ? styles.editActions : { flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', gap: 8, marginLeft: 8 }}>
                       <TouchableOpacity
                         style={[styles.profileSaveButton, { backgroundColor: theme.primary }]}
                         onPress={handleSavePlayerName}
@@ -580,13 +745,16 @@ export default function SettingsScreen() {
                       </TouchableOpacity>
                     </View>
                   ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
                       {playerNameSuccess && (
                         <Check size={18} color="#4ade80" style={{ marginRight: 8 }} />
                       )}
                       <TouchableOpacity
                         style={[styles.editButton, { backgroundColor: theme.secondary }]}
-                        onPress={() => setIsEditingPlayerName(true)}
+                        onPress={() => {
+                          setIsEditingPlayerName(true);
+                          setTempPlayerName(playerName || '');
+                        }}
                         disabled={playerNameSuccess}
                       >
                         <Edit2 size={18} color={theme.text} />
@@ -616,6 +784,15 @@ export default function SettingsScreen() {
               </View>
             </ScrollView>
           </View>
+          {/* Toast inside modal so messages are visible while modal is open */}
+          {toastConfig.visible && (
+            <Toast
+              visible={toastConfig.visible}
+              message={toastConfig.message}
+              type={toastConfig.type}
+              onHide={hideToast}
+            />
+          )}
         </View>
       </Modal>
 
@@ -833,56 +1010,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               )}
 
-              {/* Renomear Cluster - APENAS ADMIN */}
-              {isAdmin && (
-                <View style={[styles.adminSection, { borderColor: theme.border }]}>
-                  <View style={styles.adminSectionHeader}>
-                    <Edit2 size={20} color={theme.primary} />
-                    <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Nome do Cluster</Text>
-                  </View>
-                  {isRenamingCluster ? (
-                    <View>
-                      <Text style={[styles.adminLabel, { color: theme.text }]}>Nome Atual: {clusterDisplayName}</Text>
-                      <TextInput
-                        style={[styles.clusterInput, { 
-                          backgroundColor: theme.inputBackground,
-                          color: theme.text,
-                          borderColor: theme.border
-                        }]}
-                        value={newClusterName}
-                        onChangeText={setNewClusterName}
-                        placeholder="Novo nome de exibição"
-                        placeholderTextColor={theme.placeholderText}
-                      />
-                      <View style={styles.adminButtonRow}>
-                        <TouchableOpacity
-                          style={[styles.adminSecondaryButton, { borderColor: theme.border }]}
-                          onPress={() => {
-                            setIsRenamingCluster(false);
-                            setNewClusterName('');
-                          }}
-                        >
-                          <Text style={[styles.adminSecondaryButtonText, { color: theme.text }]}>Cancelar</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.adminPrimaryButton, { backgroundColor: theme.primary }]}
-                          onPress={handleRenameCluster}
-                        >
-                          <Text style={styles.adminPrimaryButtonText}>Guardar</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.adminSecondaryButton, { borderColor: theme.border }]}
-                      onPress={() => setIsRenamingCluster(true)}
-                    >
-                      <Edit2 size={18} color={theme.text} />
-                      <Text style={[styles.adminSecondaryButtonText, { color: theme.text }]}>Alterar Nome</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
+              {/* Renomear Cluster moved to Profile modal per UX change */}
 
               {/* Sair do Cluster - Disponível para TODOS */}
               <View style={[styles.adminSection, { borderColor: theme.border }]}>
@@ -1043,7 +1171,7 @@ export default function SettingsScreen() {
           onClose={() => setShowAdminModal(false)}
           currentClusterId={clusterName}
           onAdminChanged={() => {
-            showToast('Novo admin definido com sucesso!', 'success');
+            // Success toast removed as requested. No user-facing message.
           }}
         />
       )}
@@ -1287,7 +1415,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   clusterInput: {
-    height: 45,
+    height: 40,
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 14,
@@ -1475,6 +1603,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
   },
+  profileSubValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    opacity: 0.9,
+  },
+  clubName: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  clubId: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1,
+  },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1483,10 +1625,12 @@ const styles = StyleSheet.create({
   profileInput: {
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     marginTop: 4,
+    height: 40,
   },
   editActions: {
     flexDirection: 'row',
@@ -1512,5 +1656,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+    padding: 6,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
   },
 });

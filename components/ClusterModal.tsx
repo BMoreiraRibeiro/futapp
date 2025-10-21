@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
+import { Toast } from './Toast';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
 import { supabase } from '../lib/supabase';
@@ -10,24 +11,27 @@ type ClusterModalProps = {
   visible: boolean;
   userId: string;
   onComplete: () => void;
+  initialMode?: 'create' | 'join';
 };
 
-export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps) {
+export function ClusterModal({ visible, userId, onComplete, initialMode = 'create' }: ClusterModalProps) {
   const { isDarkMode } = useTheme();
   const { updateClusterState } = useAuth();
   const theme = isDarkMode ? colors.dark : colors.light;
   const [clusterId, setClusterId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<'create' | 'join'>('create');
+  const [createdClusterId, setCreatedClusterId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'create' | 'join'>(initialMode);
   const [showNameChangeModal, setShowNameChangeModal] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
   const [pendingClusterUuid, setPendingClusterUuid] = useState<string | null>(null);
   const [currentPlayerName, setCurrentPlayerName] = useState('');
+  const [toastConfig, setToastConfig] = useState<{ visible: boolean; message: string; type: 'success'|'error'|'info' }>({ visible: false, message: '', type: 'info' });
 
   const handleSubmit = async () => {
     if (!clusterId.trim()) {
-      setError('Por favor, insira o nome do clube');
+      setError(mode === 'create' ? 'Por favor, insira o nome do clube' : 'Por favor, insira o ID do clube');
       return;
     }
 
@@ -78,7 +82,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
             nome_cluster: trimmedClusterId,
             created_by: userId
           }])
-          .select();
+          .select('cluster_uuid, id, nome_cluster');
 
         if (clusterError) {
           console.error('❌ Cluster: Erro ao criar cluster:', clusterError);
@@ -97,6 +101,11 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         }
         
         const clusterUuid = clusterData[0].cluster_uuid;
+        // Save DB generated numeric ID (if present) to show to the user for invites
+  // store uuid if needed later, but not displayed
+        if (clusterData[0].id) {
+          setCreatedClusterId(String(clusterData[0].id));
+        }
 
         // 2. Adicionar o criador como membro admin em cluster_members
         const { data, error: memberError } = await supabase
@@ -173,11 +182,25 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
         }
       } else {
         // Modo juntar-se: busca o cluster pelo nome_cluster
-        console.warn('🔍 Cluster: Buscando clube pelo nome:', trimmedClusterId);
-        const { data: existingClusters, error: checkError } = await supabase
-          .from('clusters')
-          .select('cluster_uuid, nome_cluster')
-          .eq('nome_cluster', trimmedClusterId);
+        console.warn('🔍 Cluster: Buscando clube pelo ID:', trimmedClusterId);
+        const idQuery = trimmedClusterId;
+        let existingClusters;
+        let checkError;
+
+        if (/^\d+$/.test(idQuery)) {
+          // numeric id
+          const numId = parseInt(idQuery, 10);
+          ({ data: existingClusters, error: checkError } = await supabase
+            .from('clusters')
+            .select('cluster_uuid, nome_cluster, id')
+            .eq('id', numId));
+        } else {
+          // fallback to string comparison (in case id is stored as text)
+          ({ data: existingClusters, error: checkError } = await supabase
+            .from('clusters')
+            .select('cluster_uuid, nome_cluster, id')
+            .eq('id', idQuery));
+        }
 
         if (checkError) {
           console.error('❌ Cluster: Erro ao verificar clube:', checkError);
@@ -192,7 +215,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
 
         if (!existingClusters || existingClusters.length === 0) {
           console.warn('⚠️ Cluster: Clube não encontrado');
-          setError('Este clube não existe. Por favor, verifique o nome ou crie um novo.');
+          setError('Este clube não existe. Por favor, verifique o ID ou crie um novo clube.');
           setLoading(false);
           return;
         }
@@ -299,8 +322,11 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
       // Atualiza o estado do cluster no contexto de autenticação
       await updateClusterState();
       console.warn('✅ Cluster: Estado atualizado, completando...');
-      
-      onComplete();
+
+      // If we created a cluster, stay on the confirmation screen until user closes.
+      if (mode !== 'create') {
+        onComplete();
+      }
     } catch (error: any) {
       console.error('💥 Cluster: Erro crítico:', error);
       console.error('💥 Cluster: Stack:', error?.stack);
@@ -488,6 +514,8 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
             </TouchableOpacity>
           </View>
 
+          {!createdClusterId ? (
+          <>
           <TextInput
             style={[
               styles.input,
@@ -497,7 +525,7 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
                 borderColor: error ? colors.dark.error : theme.border
               }
             ]}
-            placeholder={mode === 'create' ? "Nome do clube (ex: Futebol da Firma)" : "Digite o nome do clube"}
+            placeholder={mode === 'create' ? "Nome do clube (ex: Futebol da Firma)" : "Digite o ID do clube"}
             placeholderTextColor={theme.placeholderText}
             value={clusterId}
             onChangeText={(text) => {
@@ -506,30 +534,104 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
             }}
             maxLength={50}
             editable={!loading}
-            autoCapitalize="words"
+            autoCapitalize={mode === 'create' ? 'words' : 'none'}
+            keyboardType={mode === 'join' ? 'number-pad' : 'default'}
           />
+          </>
+          ) : (
+            <View style={{ marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ color: theme.text, fontSize: 16, marginBottom: 8 }}>
+                Clube criado com sucesso!
+              </Text>
+              {createdClusterId && (
+                <Text style={{ color: theme.primary, fontSize: 18, fontWeight: '700', marginBottom: 8 }}>
+                  ID: {createdClusterId}
+                </Text>
+              )}
+                <Text style={{ color: theme.text, fontSize: 13, textAlign: 'center', marginBottom: 12 }}>
+                Partilhe este ID para convidar outras pessoas a juntar-se ao clube.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: theme.primary, marginRight: 8 }]}
+                      onPress={async () => {
+                    try {
+                      // Use UUID if available, otherwise numeric ID
+                      const toCopy = createdClusterId;
+                      // @ts-ignore: dynamic import of optional dependency
+                      const cb = await import('expo-clipboard').catch(() => null);
+                      if (cb && cb.setStringAsync) {
+                        await cb.setStringAsync(toCopy as string);
+                      } else if (navigator && (navigator as any).clipboard && (navigator as any).clipboard.writeText) {
+                        // Web fallback
+                        await (navigator as any).clipboard.writeText(toCopy as string);
+                      } else {
+                        throw new Error('Clipboard not available');
+                      }
+                      setToastConfig({ visible: true, message: 'ID copiado', type: 'success' });
+                      } catch (e) {
+                      setToastConfig({ visible: true, message: 'Copiar falhou. Copie manualmente o ID', type: 'error' });
+                    }
+                  }}
+                >
+                  <Text style={[styles.buttonText, { color: theme.text }]}>Copiar ID</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: '#2ecc71' }]}
+                  onPress={() => {
+                    // Close and finalize
+                    setCreatedClusterId(null);
+                    onComplete();
+                  }}
+                >
+                  <Text style={[styles.buttonText, { color: '#fff' }]}>Fechar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, { backgroundColor: theme.secondary || '#666' }]}
+                  onPress={async () => {
+                    try {
+                    const message = `Participe do meu clube! ID do clube: ${createdClusterId}`;
+                      if ((navigator as any)?.share) {
+                        // Web: use Web Share API
+                        await (navigator as any).share({ title: 'ID do Clube', text: message });
+                        return;
+                      }
 
+                      // Mobile: use React Native Share API
+                      await Share.share({ message, title: 'ID do Clube' });
+                    } catch (e) {
+                      setToastConfig({ visible: true, message: 'Não foi possível partilhar o ID', type: 'error' });
+                    }
+                  }}
+                >
+                  <Text style={[styles.buttonText, { color: '#fff' }]}>Compartilhar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           {error && (
             <Text style={[styles.errorText, { color: colors.dark.error }]}>
               {error}
             </Text>
           )}
 
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: theme.primary },
-              loading && styles.buttonDisabled
-            ]}
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            <Text style={[styles.buttonText, { color: theme.text }]}>
-              {loading 
-                ? (mode === 'create' ? 'Criando...' : 'Juntando-se...') 
-                : (mode === 'create' ? 'Criar Clube' : 'Juntar-se ao Clube')}
-            </Text>
-          </TouchableOpacity>
+          {!createdClusterId && (
+            <TouchableOpacity
+              style={[
+                styles.button,
+                { backgroundColor: theme.primary },
+                loading && styles.buttonDisabled
+              ]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              <Text style={[styles.buttonText, { color: theme.text }]}>
+                {loading 
+                  ? (mode === 'create' ? 'Criando...' : 'Juntando-se...') 
+                  : (mode === 'create' ? 'Criar Clube' : 'Juntar-se ao Clube')}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -615,6 +717,13 @@ export function ClusterModal({ visible, userId, onComplete }: ClusterModalProps)
           </View>
         </View>
       </Modal>
+      {/* Toast for copy/share actions - keep inside main return */}
+      <Toast
+        visible={toastConfig.visible}
+        message={toastConfig.message}
+        type={toastConfig.type}
+        onHide={() => setToastConfig(prev => ({ ...prev, visible: false }))}
+      />
     </Modal>
   );
 }

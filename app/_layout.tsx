@@ -309,6 +309,7 @@ function RootLayoutNav() {
           visible={showClusterModal}
           userId={session.user.id}
           onComplete={handleClusterCreated}
+          initialMode="join"
         />
       </View>
     );
