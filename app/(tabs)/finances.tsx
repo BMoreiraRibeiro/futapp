@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
+
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import { Trash2, ClipboardList } from 'lucide-react-native';
@@ -26,6 +27,8 @@ export default function FinancesScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [paymentsModalVisible, setPaymentsModalVisible] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameWithCalotes | null>(null);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [gameToDelete, setGameToDelete] = useState<GameWithCalotes | null>(null);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
     message: string;
@@ -57,7 +60,6 @@ export default function FinancesScreen() {
   const loadGames = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Carregando jogos e pagamentos...');
       if (!clusterName) return;
 
       // Buscar todos os jogos
@@ -68,7 +70,6 @@ export default function FinancesScreen() {
         .order('data', { ascending: false });
 
       if (gamesError) throw gamesError;
-      console.log('📋 Jogos encontrados:', gamesData?.length);
 
       // Buscar calotes de todos os jogos COM JOIN para obter nome do jogador
       const { data: calotesData, error: calotesError } = await supabase
@@ -84,7 +85,6 @@ export default function FinancesScreen() {
         .eq('cluster_uuid', clusterName);
 
       if (calotesError) throw calotesError;
-      console.log('💳 Registos de calotes encontrados:', calotesData?.length);
 
       // Combinar os dados
       const gamesWithCalotes: GameWithCalotes[] = gamesData?.map(game => {
@@ -96,10 +96,6 @@ export default function FinancesScreen() {
             pago: c.pago || false
           })) || [];
         
-        const totalPagos = jogadoresDoJogo.filter(j => j.pago).length;
-        const totalCalotes = jogadoresDoJogo.filter(j => !j.pago).length;
-        
-        console.log(`🎮 Jogo ${game.id_jogo}: ${jogadoresDoJogo.length} jogadores, ${totalPagos} pagos, ${totalCalotes} calotes`);
         
         return {
           id_jogo: game.id_jogo,
@@ -109,67 +105,57 @@ export default function FinancesScreen() {
       }) || [];
 
       setGames(gamesWithCalotes);
-      console.log('✅ Dados carregados com sucesso!');
     } catch (error) {
-      console.error('❌ Erro ao carregar jogos:', error);
       showToast('Erro ao carregar dados', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteGame = async (idJogo: string) => {
-    Alert.alert(
-      'Confirmar exclusão',
-      'Tem certeza que deseja eliminar este jogo? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setDeletingId(idJogo);
-
-              // Eliminar registos de calotes primeiro
-              const { error: calotesError } = await supabase
-                .from('calotes_jogo')
-                .delete()
-                .eq('cluster_uuid', clusterName)
-                .eq('id_jogo', idJogo);
-
-              if (calotesError) throw calotesError;
-
-              // Eliminar o jogo
-              const { error: gameError } = await supabase
-                .from('resultados_jogos')
-                .delete()
-                .eq('cluster_uuid', clusterName)
-                .eq('id_jogo', idJogo);
-
-              if (gameError) throw gameError;
-
-              showToast('Jogo eliminado com sucesso', 'success');
-              loadGames();
-            } catch (error) {
-              console.error('Erro ao eliminar jogo:', error);
-              showToast('Erro ao eliminar jogo', 'error');
-            } finally {
-              setDeletingId(null);
-            }
-          }
-        }
-      ]
-    );
+  const handleDeleteGame = async (game: GameWithCalotes) => {
+    setGameToDelete(game);
+    setDeleteConfirmVisible(true);
   };
 
-  const handleOpenPaymentsModal = (game: GameWithCalotes) => {
+  const confirmDeleteGame = async () => {
+    if (!gameToDelete) return;
+
+    try {
+      setDeletingId(gameToDelete.id_jogo);
+
+      // Eliminar registos de calotes primeiro
+      const { error: calotesError } = await supabase
+        .from('calotes_jogo')
+        .delete()
+        .eq('cluster_uuid', clusterName)
+        .eq('id_jogo', gameToDelete.id_jogo);
+
+      if (calotesError) throw calotesError;
+
+      // Eliminar o jogo
+      const { error: gameError } = await supabase
+        .from('resultados_jogos')
+        .delete()
+        .eq('cluster_uuid', clusterName)
+        .eq('id_jogo', gameToDelete.id_jogo);
+
+      if (gameError) throw gameError;
+
+      showToast('Jogo eliminado com sucesso', 'success');
+      loadGames();
+    } catch (error) {
+      showToast('Erro ao eliminar jogo', 'error');
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmVisible(false);
+      setGameToDelete(null);
+    }
+  };  const handleOpenPaymentsModal = (game: GameWithCalotes) => {
     setSelectedGame(game);
     setPaymentsModalVisible(true);
   };
 
   const handleClosePaymentsModal = () => {
-    console.log('🔄 Modal fechado, recarregando dados...');
     setPaymentsModalVisible(false);
     setSelectedGame(null);
     loadGames(); // Recarregar para mostrar as alterações
@@ -178,9 +164,8 @@ export default function FinancesScreen() {
   const renderGame = ({ item }: { item: GameWithCalotes }) => (
     <View style={[
       styles.gameCard,
-      { 
-        backgroundColor: theme.cardBackground,
-        opacity: deletingId === item.id_jogo ? 0.5 : 1
+      {
+        backgroundColor: theme.cardBackground
       }
     ]}>
       <View style={styles.gameHeader}>
@@ -198,7 +183,7 @@ export default function FinancesScreen() {
           {isAdmin && (
             <TouchableOpacity
               style={[styles.deleteButton, { backgroundColor: theme.error }]}
-              onPress={() => handleDeleteGame(item.id_jogo)}
+              onPress={() => handleDeleteGame(item)}
               disabled={deletingId === item.id_jogo}
             >
               <Trash2 size={16} color="#ffffff" />
@@ -263,6 +248,40 @@ export default function FinancesScreen() {
           gameDate={selectedGame.data}
           isAdmin={isAdmin}
         />
+      )}
+
+      {deleteConfirmVisible && gameToDelete && (
+        <Modal
+          visible={deleteConfirmVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setDeleteConfirmVisible(false)}
+        >
+          <View style={[styles.modalContainer, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>
+                Confirmar exclusão
+              </Text>
+              <Text style={[styles.modalMessage, { color: theme.text }]}>
+                Tem certeza que deseja excluir o jogo de {new Date(gameToDelete.data).toLocaleDateString('pt-PT')}?
+              </Text>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.secondary }]}
+                  onPress={() => setDeleteConfirmVisible(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.error }]}
+                  onPress={confirmDeleteGame}
+                >
+                  <Text style={styles.modalButtonText}>Excluir</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
 
       {toastConfig.visible && (
@@ -352,5 +371,42 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     textAlign: 'center',
     opacity: 0.6,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 16,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 16,
+  },
+  modalMessage: {
+    fontSize: 16,
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalButton: {
+    width: '48%',
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: 'white',
   },
 });

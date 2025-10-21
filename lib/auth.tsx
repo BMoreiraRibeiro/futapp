@@ -47,35 +47,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 🔍 MONITOR: Rastreia TODAS as mudanças de estado
   useEffect(() => {
-    console.log('📊 [STATE MONITOR] Estado atual:', {
-      isAuthenticated,
-      hasCluster,
-      clusterName,
-      clusterDisplayName,
-      isAdmin,
-      sessionExists: !!session,
-      userId: session?.user?.id || 'N/A'
-    });
+    // State monitoring removed for production
   }, [isAuthenticated, hasCluster, clusterName, clusterDisplayName, isAdmin, session]);
 
   // 🔍 MONITOR: Rastreia mudanças específicas do hasCluster
   useEffect(() => {
-    console.log('🎯 [hasCluster CHANGED] Novo valor:', hasCluster);
-    console.log('🎯 [hasCluster CONTEXT] isAuthenticated:', isAuthenticated, 'clusterName:', clusterName);
+    // hasCluster change monitoring removed for production
   }, [hasCluster]);
 
   // 🔍 MONITOR: Rastreia mudanças de sessão
   useEffect(() => {
-    if (session) {
-      console.log('🔐 [SESSION CHANGED] Nova sessão:', session.user.id);
-    } else {
-      console.log('🔐 [SESSION CHANGED] Sessão removida');
-    }
+    // Session change monitoring removed for production
   }, [session]);
 
   const clearSessionData = async () => {
     try {
-      console.log('🧹 clearSessionData - Limpando todos os dados da sessão');
       setSession(null);
       setIsAuthenticated(false);
       setHasCluster(false);
@@ -91,8 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.multiRemove(clearKeys);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 100));
-      console.log('✅ clearSessionData - Dados limpos com sucesso');
+  await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error('Erro ao limpar dados da sessão:', error);
       throw error;
@@ -101,28 +86,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('🚪 signOut - Iniciando processo de logout...');
-
       // Limpa os dados locais PRIMEIRO
-      console.log('🧹 signOut - Limpando dados locais...');
       await clearSessionData();
 
       // Faz logout no Supabase DEPOIS
-      console.log('🔓 signOut - Fazendo logout no Supabase...');
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('❌ signOut - Erro ao fazer logout no Supabase:', error.message);
         // Mesmo com erro, continua o processo para garantir limpeza local
       } else {
-        console.log('✅ signOut - Logout no Supabase concluído');
       }
 
       // Força uma pequena espera antes do redirecionamento
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      console.log('🔄 signOut - Redirecionando para /auth');
       await router.replace('/auth');
-      console.log('✅ signOut - Logout completo');
+      // Logout complete - logs removed for production
     } catch (error) {
       console.error('💥 signOut - Erro crítico durante logout:', error);
       // Mesmo com erro, tenta redirecionar
@@ -132,13 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('💥 signOut - Erro ao redirecionar:', routerError);
       }
     } finally {
+      // Sign out completed
     }
   };
 
   const fetchClusterInfo = async () => {
     try {
-      console.log('🔍 fetchClusterInfo - Iniciando busca de cluster...');
-      console.log('🔍 fetchClusterInfo - session.user.id:', session?.user.id);
+      // Starting cluster search - logs removed for production
       
       // Verifica diretamente no banco de dados
       if (session?.user.id) {
@@ -148,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('user_id', session.user.id)
           .maybeSingle(); // Usa maybeSingle() para evitar erro quando não há resultados
 
-        console.log('🔍 fetchClusterInfo - Resultado da query:', { member, error: memberError });
+        // Query result logging removed for production
 
         // Se houver erro E não for "nenhum resultado encontrado"
         if (memberError && memberError.code !== 'PGRST116') {
@@ -157,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (member) {
-          console.log('✅ fetchClusterInfo - Cluster encontrado:', member);
+          // Cluster found - logs removed for production
           
           // Buscar o nome_cluster da tabela clusters
           const { data: clusterData } = await supabase
@@ -170,17 +149,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setClusterName(member.cluster_uuid);
           setClusterDisplayName(clusterData?.nome_cluster || 'Cluster');
           setIsAdmin(member.admin || false);
-          console.log('✅ fetchClusterInfo - Estados atualizados: hasCluster=true, clusterName=', member.cluster_uuid);
+          // States updated - logs removed for production
         } else {
-          console.log('� fetchClusterInfo - Nenhum cluster encontrado, limpando estados...');
+          // No cluster found, clearing states - logs removed for production
           setHasCluster(false);
           setClusterName(null);
           setClusterDisplayName(null);
           setIsAdmin(false);
-          console.log('✅ fetchClusterInfo - Estados limpos: hasCluster=false, clusterName=null');
+          // States cleared - logs removed for production
         }
       } else {
-        console.log('⚠️ fetchClusterInfo - Sem session.user.id, limpando estados...');
+        // No session user id, clearing states - logs removed for production
         setHasCluster(false);
         setClusterName(null);
         setClusterDisplayName(null);
@@ -194,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsAdmin(false);
     }
   };
+
+  // signIn function removed - not used anywhere
 
   useEffect(() => {
     const initApp = async () => {
@@ -216,16 +197,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initApp();
 
     // Configura o listener de mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔔 onAuthStateChange - Evento:', event, 'Session:', session?.user?.id || 'nenhuma');
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      // Auth state change event - logs removed for production
       
       if (session?.user?.id) {
         setSession(session);
         setIsAuthenticated(true);
-        console.log('🔍 onAuthStateChange - Buscando informações do cluster...');
+        // Fetching cluster info - logs removed for production
         await fetchClusterInfo();
       } else {
-        console.log('🧹 onAuthStateChange - Sem sessão, limpando dados');
+        // No session, clearing data - logs removed for production
         await clearSessionData();
       }
     });
@@ -236,25 +217,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateClusterState = async () => {
-    console.log('🔄 updateClusterState - Chamado');
+    // updateClusterState called - logs removed for production
     await fetchClusterInfo();
   };
 
   const clearClusterState = () => {
-    console.log('🧹 clearClusterState - Limpando estados do cluster IMEDIATAMENTE');
-    console.log('🧹 clearClusterState - Estados ANTES:', { hasCluster, clusterName, clusterDisplayName, isAdmin });
-    
+    // clearClusterState - clearing cluster states immediately - logs removed for production
     setHasCluster(false);
     setClusterName(null);
     setClusterDisplayName(null);
     setIsAdmin(false);
     
     // Verificação imediata (não vai mostrar o novo valor por causa do batching do React)
-    console.log('✅ clearClusterState - Estados limpos (comandos executados)');
+    // States cleared - logs removed for production
     
     // Agendar verificação após o React fazer o batching
     setTimeout(() => {
-      console.log('🔍 clearClusterState - VERIFICAÇÃO PÓS-CLEAR:', { hasCluster, clusterName, clusterDisplayName, isAdmin });
+      // Post-clear verification - logs removed for production
     }, 0);
   };
 
@@ -262,7 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!clusterName) return;
     
     try {
-      console.log('🔄 refreshClusterDisplayName - Atualizando nome do cluster...');
+      // Refreshing cluster display name - logs removed for production
       const { data: clusterData } = await supabase
         .from('clusters')
         .select('nome_cluster')
@@ -271,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (clusterData) {
         setClusterDisplayName(clusterData.nome_cluster || 'Cluster');
-        console.log('✅ refreshClusterDisplayName - Nome atualizado:', clusterData.nome_cluster);
+        // Cluster name updated - logs removed for production
       }
     } catch (error) {
       console.error('❌ refreshClusterDisplayName - Erro:', error);

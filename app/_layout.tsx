@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, StyleSheet, Animated, Image, Platform } from 'react-native';
+import { View, StyleSheet, Animated, Image, Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { supabase } from '../lib/supabase';
@@ -12,8 +12,8 @@ import { ResultsProvider } from '../lib/results';
 import { LanguageProvider } from '../lib/language';
 import * as SplashScreen from 'expo-splash-screen';
 import NetInfo from '@react-native-community/netinfo';
+
 import * as NavigationBar from 'expo-navigation-bar';
-import * as Linking from 'expo-linking';
 
 // Impede o escondimento automático do SplashScreen
 SplashScreen.preventAutoHideAsync().catch((error) => console.warn(error));
@@ -90,7 +90,7 @@ function CustomSplashScreen({ message }: { message?: string }) {
         />
       </Animated.View>
       <Animated.Text style={[styles.splashText, { opacity }]}>
-        Futebol às <Text style={styles.splashTextHighlight}>quartas</Text>
+        Futebol às quartas
       </Animated.Text>
       <Animated.Text style={[styles.loadingText, { opacity }]}>
         {loadingText}
@@ -109,50 +109,12 @@ function RootLayoutNav() {
   
   // 🔍 MONITOR: Rastreia mudanças nos estados do Auth
   useEffect(() => {
-    // Monitoramento de estados de autenticação
+    // Auth states monitoring removed for production
   }, [isAuthenticated, hasCluster, clusterName, session, showClusterModal, isValidating, shouldRedirectToAuth]);
-
-  // Handle deep links for email confirmation
-  useEffect(() => {
-    const handleDeepLink = async (event: { url: string }) => {
-      const url = event.url;
-      
-      // Handle Supabase auth deep links
-      if (url.includes('access_token') || url.includes('refresh_token')) {
-        try {
-          const { data, error } = await supabase.auth.getSession();
-          if (error) {
-            console.error('Erro ao processar deep link de auth:', error);
-          } else {
-            // Sessão processada via deep link
-          }
-        } catch (error) {
-          console.error('Erro ao processar deep link:', error);
-        }
-      }
-    };
-
-    // Handle initial URL when app opens
-    const getInitialURL = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      if (initialUrl) {
-        handleDeepLink({ url: initialUrl });
-      }
-    };
-
-    // Listen for deep links
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    
-    getInitialURL();
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   // 🔍 MONITOR: Detecta quando hasCluster muda
   useEffect(() => {
-    // Monitoramento de mudanças no hasCluster
+    // hasCluster change monitoring removed for production
   }, [hasCluster]);
   
   // Esconde a barra de navegação do Android
@@ -164,7 +126,7 @@ function RootLayoutNav() {
           await NavigationBar.setVisibilityAsync('hidden');
         }
       } catch (error) {
-        // Erro ao configurar barra de navegação
+        // Navigation bar configuration error removed for production
       }
     };
     
@@ -200,10 +162,11 @@ function RootLayoutNav() {
   useEffect(() => {
     const validateAuth = async () => {
       try {
-        // Iniciando validação
+        // Validation started - logs removed for production
         
         // Aguarda o AuthProvider terminar de inicializar
         if (isInitializing) {
+          // Still initializing - logs removed for production
           return;
         }
 
@@ -212,12 +175,14 @@ function RootLayoutNav() {
 
         // 1. Verificar se tem internet
         if (!hasInternet) {
+          // No internet - logs removed for production
           setIsValidating(false);
           return;
         }
 
         // 2. Verificar se tem sessão válida
         if (!session || !isSessionValid()) {
+          // Invalid session - logs removed for production
           setShouldRedirectToAuth(true);
           setShowClusterModal(false); // Esconde o modal ao redirecionar para auth
           setIsValidating(false);
@@ -226,6 +191,8 @@ function RootLayoutNav() {
 
         // 3. Se autenticado, verificar cluster
         if (isAuthenticated && session?.user.id) {
+          // User authenticated, checking cluster - logs removed for production
+          
           // Adicionar pequeno delay para evitar flash visual
           await new Promise(resolve => setTimeout(resolve, 300));
           
@@ -249,6 +216,7 @@ function RootLayoutNav() {
 
           // Se tem um member, verificar se o cluster ainda existe
           if (member) {
+            // Member found, checking cluster existence - logs removed for production
             const { data: cluster, error: clusterError } = await supabase
               .from('clusters')
               .select('cluster_uuid')
@@ -261,7 +229,9 @@ function RootLayoutNav() {
 
             if (cluster) {
               hasValidCluster = true;
+              // Valid cluster found - logs removed for production
             } else {
+              console.warn('⚠️ validateAuth - Cluster não existe mais, limpando member órfão...');
               // Cluster não existe mais, limpar o member órfão
               await supabase
                 .from('cluster_members')
@@ -270,15 +240,20 @@ function RootLayoutNav() {
             }
           }
 
+          // Cluster validation check - logs removed for production
+
           if (hasValidCluster) {
+            // User has cluster, hiding modal - logs removed for production
             setShowClusterModal(false); // Garante que o modal está escondido
             setShouldRedirectToAuth(false); // CRÍTICO: Garante que não redireciona
             await updateClusterState();
           } else {
+            // User without cluster, showing modal - logs removed for production
             setShowClusterModal(true); // Mostra o modal sempre que não há cluster
             setShouldRedirectToAuth(false); // CRÍTICO: Não deve redirecionar para auth, apenas mostrar modal
           }
         } else {
+          // Not authenticated - logs removed for production
           setShouldRedirectToAuth(true);
           setShowClusterModal(false);
         }
@@ -287,6 +262,7 @@ function RootLayoutNav() {
         setShouldRedirectToAuth(true);
         setShowClusterModal(false);
       } finally {
+        // Validation completed - logs removed for production
         setIsValidating(false);
       }
     };
@@ -295,6 +271,7 @@ function RootLayoutNav() {
   }, [isAuthenticated, session, hasInternet, isInitializing]);
 
   const handleClusterCreated = async () => {
+    // Cluster created/associated, updating state - logs removed for production
     setShowClusterModal(false);
     // Atualiza o estado do cluster após criação/associação
     await updateClusterState();
@@ -312,23 +289,27 @@ function RootLayoutNav() {
 
   // Mostra modal de sem internet
   if (showNoInternetModal) {
+    // Showing NoInternetModal - logs removed for production
     return <NoInternetModal visible={showNoInternetModal} onRetry={handleRetryConnection} />;
   }
 
   // Mostra o CustomSplashScreen enquanto está inicializando ou validando
   if (isInitializing || isValidating) {
+    // Showing SplashScreen - logs removed for production
     return <CustomSplashScreen message={isInitializing ? "Carregando..." : "Validando sessão..."} />;
   }
 
   // CRÍTICO: Se está autenticado MAS não tem cluster, mostra APENAS o ClusterModal
   // NÃO renderizar Stack ou tabs quando showClusterModal está true
   if (isAuthenticated && !shouldRedirectToAuth && showClusterModal && session) {
+    // Rendering only ClusterModal - logs removed for production
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <ClusterModal
           visible={showClusterModal}
           userId={session.user.id}
           onComplete={handleClusterCreated}
+          initialMode="join"
         />
       </View>
     );
@@ -336,13 +317,14 @@ function RootLayoutNav() {
 
   // VERIFICAÇÃO ADICIONAL: Se não tem cluster válido, NÃO renderizar as tabs
   if (isAuthenticated && !hasCluster && !showClusterModal) {
+    // Inconsistent state detected - logs removed for production
     // Força re-validação
     setIsValidating(true);
     return <CustomSplashScreen message="Re-validando..." />;
   }
 
   // Em vez de usar router.replace, decidimos qual tela mostrar usando condicionais
-  const renderingScreen = shouldRedirectToAuth || !isAuthenticated ? 'auth' : '(tabs)';
+  // Rendering Stack - logs removed for production
   return (
     <ResultsProvider>
       <>
@@ -487,19 +469,11 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: 'Inter_700Bold',
     marginBottom: 8,
-    textAlign: 'center',
-    flexWrap: 'nowrap',
-  },
-  splashTextHighlight: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontFamily: 'Inter_700Bold',
   },
   loadingText: {
     color: '#ffffff',
     fontSize: 16,
     fontFamily: 'Inter_400Regular',
     opacity: 0.8,
-    textAlign: 'center',
   },
 });

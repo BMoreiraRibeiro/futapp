@@ -35,7 +35,6 @@ export function useClusterSettings(clusterName: string | null) {
       setLoading(true);
       setError(null);
 
-      console.log('🔍 Carregando configurações do cluster:', clusterName);
 
       // Buscar na tabela clusters, coluna configuracoes (JSONB)
       const { data, error: fetchError } = await supabase
@@ -49,16 +48,13 @@ export function useClusterSettings(clusterName: string | null) {
         throw fetchError;
       }
 
-      console.log('📦 Dados recebidos do Supabase:', data);
 
       // Se existe configurações, usar; senão, criar padrão
       if (data?.configuracoes) {
         const mergedSettings = { ...DEFAULT_SETTINGS, ...data.configuracoes };
-        console.log('✅ Configurações encontradas e mescladas:', mergedSettings);
         setSettings(mergedSettings);
         await cacheSettings(mergedSettings);
       } else {
-        console.log('⚠️ Nenhuma configuração encontrada, criando padrão');
         // Criar configurações padrão
         await updateSettings(DEFAULT_SETTINGS);
       }
@@ -149,7 +145,6 @@ export function useClusterSettings(clusterName: string | null) {
           filter: `cluster_uuid=eq.${clusterName}`,
         },
         (payload: any) => {
-          console.log('Configurações atualizadas:', payload);
           if (payload.new?.configuracoes) {
             const mergedSettings = { ...DEFAULT_SETTINGS, ...payload.new.configuracoes };
             setSettings(mergedSettings);

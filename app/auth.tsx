@@ -150,7 +150,7 @@ export default function AuthScreen() {
         return;
       }
 
-      console.log('✅ Login realizado com sucesso');
+      // Login successful - logs removed for production
       showToast(t('auth.loginSuccess'), 'success');
     } catch (error) {
       setError(error instanceof Error ? error.message : t('common.loginError'));
@@ -162,7 +162,7 @@ export default function AuthScreen() {
 
   // === REGISTO (com nome do jogador) ===
   async function handleRegister() {
-    console.log('🔄 Iniciando registo...');
+    // Starting registration - logs removed for production
     
     if (!hasInternet) {
       setError('Sem conexão à internet');
@@ -232,11 +232,11 @@ export default function AuthScreen() {
         return;
       }
 
-      console.log('✅ Conta criada com sucesso');
+      // Account created successfully - logs removed for production
       
       // Se email confirmations estiver ativado
       if (!data.session) {
-        console.log('📧 Email de confirmação enviado');
+        // Confirmation email sent - logs removed for production
         showToast('Verifique seu email para confirmar a conta', 'success');
         setEmail('');
         setPassword('');
@@ -244,7 +244,7 @@ export default function AuthScreen() {
         switchMode('login');
       } else {
         // Login automático
-        console.log('✅ Utilizador logado automaticamente');
+        // User logged in automatically - logs removed for production
         showToast(t('auth.registerSuccess'), 'success');
       }
     } catch (error) {
@@ -261,7 +261,7 @@ export default function AuthScreen() {
 
   // === RECUPERAR PASSWORD ===
   async function handleResetPassword() {
-    console.log('🔄 Iniciando recuperação de password...');
+    // Starting password recovery - logs removed for production
     
     if (!hasInternet) {
       setError('Sem conexão à internet');
@@ -283,8 +283,8 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
 
-      console.log('📧 Enviando email de recuperação para:', email);
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Sending recovery email - logs removed for production
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: 'fut://auth/reset-password',
       });
 
@@ -310,8 +310,7 @@ export default function AuthScreen() {
         return;
       }
 
-      console.log('✅ Email de recuperação enviado com sucesso');
-      console.log('Data:', data);
+      // Recovery email sent successfully - logs removed for production
       showToast('Email de recuperação enviado! Verifique sua caixa de entrada.', 'success');
       setEmail('');
       switchMode('login');

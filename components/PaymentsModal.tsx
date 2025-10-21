@@ -47,9 +47,6 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
   const loadPlayers = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Carregando jogadores do jogo...');
-      console.log('🎮 Game ID:', gameId);
-      console.log('🏢 Cluster ID:', clusterId);
       
       // Buscar o jogo para identificar os UUIDs dos jogadores das equipas
       const { data: gameData, error: gameError } = await supabase
@@ -60,7 +57,6 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         .single();
 
       if (gameError) throw gameError;
-      console.log('📋 Jogo encontrado:', gameData);
 
       // Buscar os pagamentos existentes COM JOIN para obter nome
       const { data: paymentsData, error: paymentsError } = await supabase
@@ -76,7 +72,6 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         .eq('cluster_uuid', clusterId);
 
       if (paymentsError) throw paymentsError;
-      console.log('💳 Pagamentos encontrados:', paymentsData?.length, paymentsData);
 
       // Criar um mapa de pagamentos por id_jogador
       const paymentsMap = new Map(
@@ -86,13 +81,10 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           { pago: p.pago, nome: p.jogadores?.nome }
         ]) || []
       );
-      console.log('🗺️ Mapa de pagamentos:', Array.from(paymentsMap.entries()));
 
       // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
       const jogadoresEquipaA: string[] = gameData.jogadores_equipa_a || [];
       const jogadoresEquipaB: string[] = gameData.jogadores_equipa_b || [];
-      console.log('👥 Equipa A:', jogadoresEquipaA);
-      console.log('👥 Equipa B:', jogadoresEquipaB);
 
       // Buscar informações dos jogadores
       const allPlayerIds = [...jogadoresEquipaA, ...jogadoresEquipaB];
@@ -125,8 +117,6 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         })
       ];
 
-      console.log('✅ Lista final de jogadores:', playersList);
-      console.log('📊 Total:', playersList.length, '| Pagos:', playersList.filter(p => p.pago).length, '| Não pagos:', playersList.filter(p => !p.pago).length);
       
       setPlayerPayments(playersList);
     } catch (error) {
@@ -162,19 +152,14 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
   const handleSave = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Iniciando gravação de pagamentos...');
-      console.log('📊 Total de jogadores a atualizar:', playerPayments.length);
-      console.log('🎮 Game ID:', gameId);
-      console.log('🏢 Cluster ID:', clusterId);
       
       let successCount = 0;
       let errorCount = 0;
 
       // Atualizar cada jogador usando upsert para garantir que existe
       for (const player of playerPayments) {
-        console.log(`💳 Atualizando ${player.nome}: pago = ${player.pago}`);
         
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('calotes_jogo')
           .upsert({
             cluster_uuid: clusterId,
@@ -191,16 +176,13 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           errorCount++;
           throw error;
         } else {
-          console.log(`✅ ${player.nome} atualizado com sucesso`, data);
           successCount++;
         }
       }
 
-      console.log(`✨ Gravação concluída! Sucesso: ${successCount}, Erros: ${errorCount}`);
       showToast('Pagamentos atualizados com sucesso', 'success');
       
       setTimeout(() => {
-        console.log('🔙 Fechando modal e recarregando dados...');
         onClose();
       }, 1000);
     } catch (error) {
