@@ -14,6 +14,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import NetInfo from '@react-native-community/netinfo';
 
 import * as NavigationBar from 'expo-navigation-bar';
+import useAuthDeepLinkHandler from '../hooks/useAuthDeepLinkHandler';
 
 // Impede o escondimento automático do SplashScreen
 SplashScreen.preventAutoHideAsync().catch((error) => console.warn(error));
@@ -158,6 +159,9 @@ function RootLayoutNav() {
 
     return () => unsubscribe();
   }, []);
+
+  // Hook para capturar deep links de auth (confirm / reset)
+  useAuthDeepLinkHandler();
 
   useEffect(() => {
     const validateAuth = async () => {

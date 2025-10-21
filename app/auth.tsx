@@ -22,6 +22,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -37,6 +38,26 @@ export default function AuthScreen() {
     type: 'info'
   });
   const { session } = useAuth();
+  const [ticketFromLink, setTicketFromLink] = useState<string | undefined>(undefined);
+
+  // Detect ticket from initial Linking URL (deep links or fallback page)
+  useEffect(() => {
+    (async () => {
+      try {
+        const initial = await (await import('react-native')).Linking.getInitialURL();
+        if (initial) {
+          const [, hash] = initial.split('#');
+          const query = hash || (initial.includes('?') ? initial.split('?')[1] : '');
+          if (query) {
+            const params = Object.fromEntries(new URLSearchParams(query));
+            if (params.ticket) setTicketFromLink(params.ticket as string);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   // Verifica conectividade à internet
   useEffect(() => {
@@ -61,6 +82,11 @@ export default function AuthScreen() {
   if (session) {
     return <Redirect href="/(tabs)" />;
   }
+
+  // Se houver ticket no link, ativa o modo de reset de password
+  useEffect(() => {
+    if (ticketFromLink) setMode('resetPassword');
+  }, [ticketFromLink]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToastConfig({ visible: true, message, type });
@@ -399,6 +425,57 @@ export default function AuthScreen() {
             keyboardType="email-address"
             editable={!loading}
           />
+
+          {/* Reset password flow when ticket is present */}
+          {mode === 'resetPassword' && (
+            <>
+              <TextInput
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.inputBackground, color: theme.text }
+                ]}
+                placeholder={'Nova password'}
+                placeholderTextColor={theme.placeholderText}
+                secureTextEntry={!showPassword}
+                value={newPassword}
+                onChangeText={(txt) => setNewPassword(txt)}
+              />
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+                onPress={async () => {
+                  if (!newPassword || newPassword.length < 6) {
+                    showToast('A password deve ter pelo menos 6 caracteres', 'error');
+                    return;
+                  }
+
+                  setLoading(true);
+                  try {
+                    if (session) {
+                      // usuário já autenticado -> pode atualizar password
+                      const { error } = await supabase.auth.updateUser({ password: newPassword });
+                      if (error) {
+                        showToast('Erro ao atualizar password: ' + error.message, 'error');
+                      } else {
+                        showToast('Password atualizada com sucesso', 'success');
+                        setNewPassword('');
+                        switchMode('login');
+                      }
+                    } else {
+                      // Sem sessão -> instruir a usar o endpoint server-side que troca ticket por sessão
+                      // O deploy de produção deve oferecer um endpoint para trocar ticket->session
+                      showToast('Abra o link do email na app ou use o endpoint de troca de ticket', 'info');
+                    }
+                  } catch (e) {
+                    showToast('Erro desconhecido ao atualizar password', 'error');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                <Text style={[styles.primaryButtonText, { color: '#fff' }]}>Alterar password</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Nome do Jogador (apenas no modo registo) */}
           {mode === 'register' && (
@@ -747,6 +824,17 @@ const styles = StyleSheet.create({
   noInternetText: {
     color: '#ffffff',
     fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  primaryButton: {
+    height: 50,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  primaryButtonText: {
+    fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
   },
 });

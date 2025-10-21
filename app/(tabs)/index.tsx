@@ -267,6 +267,7 @@ export default function IndexScreen() {
 
     try {
       setSaving(true);
+      // Insert the game and explicitly request the generated id_jogo
       const { data, error } = await supabase
         .from('resultados_jogos')
         .insert([
@@ -278,15 +279,17 @@ export default function IndexScreen() {
             vencedor: null
           }
         ])
-        .select();
+        .select('id_jogo');
 
       if (error) throw error;
 
       // Inserir todos os jogadores na tabela de calotes
       if (data && data.length > 0) {
         const gameId = data[0].id_jogo;
+        if (!gameId) {
+          console.warn('saveTeamsToDatabase: inserted game but did not receive id_jogo in response', data);
+        }
         const allPlayers = [...teams[0].players, ...teams[1].players];
-        
         const calotesRecords = allPlayers.map(player => ({
           cluster_uuid: clusterName,
           id_jogador: player.id_jogador,
@@ -294,13 +297,21 @@ export default function IndexScreen() {
           pago: false
         }));
 
-        const { error: calotesError } = await supabase
+        // Insert calotes and explicitly return inserted rows so we can verify
+        const { data: calotesData, error: calotesError } = await supabase
           .from('calotes_jogo')
-          .insert(calotesRecords);
+          .insert(calotesRecords)
+          .select('id_jogador, id_jogo, pago');
 
         if (calotesError) {
           console.error('Erro ao inserir registos de calotes:', calotesError);
           throw calotesError;
+        }
+
+        // Sanity-check: ensure we inserted a row for every player
+        if (!calotesData || calotesData.length !== allPlayers.length) {
+          console.warn(`saveTeamsToDatabase: expected ${allPlayers.length} calotes rows but got ${calotesData?.length}`,
+            { expected: allPlayers.length, inserted: calotesData?.length, calotesData });
         }
       }
 

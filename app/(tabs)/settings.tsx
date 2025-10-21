@@ -642,34 +642,35 @@ export default function SettingsScreen() {
                 <View style={[styles.profileSection, { borderBottomColor: theme.border }]}> 
                   {/* club name shown above in the Clube section */}
 
-                  <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View>
-                      <Text style={[styles.profileLabel, { color: theme.text, fontSize: 13 }]}>ID do Clube</Text>
-                      <TouchableOpacity
-                        onPress={async () => {
-                          try {
-                            // @ts-ignore dynamic import
-                            const cb = await import('expo-clipboard').catch(() => null);
-                            if (cb && cb.setStringAsync) {
-                              await cb.setStringAsync(clusterIdDisplay);
-                              showToast('ID copiado', 'success');
-                            } else if ((navigator as any)?.clipboard && (navigator as any).clipboard.writeText) {
-                              await (navigator as any).clipboard.writeText(clusterIdDisplay);
-                              showToast('ID copiado', 'success');
-                            } else {
-                              showToast('Não foi possível copiar automaticamente. Copie manualmente.', 'info');
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.profileLabel, { color: theme.text, fontSize: 13 }]}>ID do Clube</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            try {
+                              // @ts-ignore dynamic import
+                              const cb = await import('expo-clipboard').catch(() => null);
+                              if (cb && cb.setStringAsync) {
+                                await cb.setStringAsync(clusterIdDisplay);
+                                showToast('ID copiado', 'success');
+                              } else if ((navigator as any)?.clipboard && (navigator as any).clipboard.writeText) {
+                                await (navigator as any).clipboard.writeText(clusterIdDisplay);
+                                showToast('ID copiado', 'success');
+                              } else {
+                                showToast('Não foi possível copiar automaticamente. Copie manualmente.', 'info');
+                              }
+                            } catch (e) {
+                              showToast('Erro ao copiar o ID', 'error');
                             }
-                          } catch (e) {
-                            showToast('Erro ao copiar o ID', 'error');
-                          }
-                        }}
-                      >
-                        <Text style={[styles.clubId, { color: theme.text }]}>{clusterIdDisplay}</Text>
-                      </TouchableOpacity>
-                      <Text style={[styles.profileSubValue, { color: theme.text, fontSize: 12, marginTop: 6 }]}>Use este ID para convidar outras pessoas a juntar-se ao clube.</Text>
-                    </View>
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center' }}
+                        >
+                          <Text style={[styles.clubId, { color: theme.text, flex: 1 }]} numberOfLines={1} ellipsizeMode="middle">{clusterIdDisplay}</Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.profileSubValue, { color: theme.text, fontSize: 12, marginTop: 6 }]}>Use este ID para convidar outras pessoas a juntar-se ao clube.</Text>
+                      </View>
 
-                    <View style={{ flexDirection: 'row', gap: 8, width: 56, justifyContent: 'flex-end' }}>
                       <TouchableOpacity
                         style={[styles.iconButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
                         onPress={async () => {
