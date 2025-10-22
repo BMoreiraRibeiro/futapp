@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Share } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Share, KeyboardAvoidingView, Platform } from 'react-native';
 import { Toast } from './Toast';
 import { useTheme } from '../lib/theme';
 import { colors } from '../lib/colors';
@@ -460,7 +460,10 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
       animationType="fade"
       statusBarTranslucent
     >
-      <View style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
+      >
         <View style={[styles.container, { backgroundColor: theme.background }]}>
           <Text style={[styles.title, { color: theme.text }]}>
             Bem-vindo ao Futebol às Quartas!
@@ -535,7 +538,8 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
             maxLength={50}
             editable={!loading}
             autoCapitalize={mode === 'create' ? 'words' : 'none'}
-            keyboardType={mode === 'join' ? 'number-pad' : 'default'}
+            keyboardType={'default'}
+            autoCorrect={false}
           />
           </>
           ) : (
@@ -633,7 +637,7 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Modal de Escolha de Nome */}
       <Modal

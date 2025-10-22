@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -171,22 +171,24 @@ export default function AuthScreen() {
       });
 
       if (error) {
-        console.error('❌ Erro no login:', error.message);
-        console.error('Código do erro:', error.status);
-        
-        let errorMessage = error.message;
-        
-        if (error.status === 429 || error.message.includes('rate limit') || error.message.includes('429')) {
+        // Avoid logging the raw error object to console (Metro will display a full stack).
+        const rawMessage = error?.message || String(error);
+        console.error('❌ Erro no login:', rawMessage);
+
+        let errorMessage = rawMessage;
+        if (error?.status === 429 || rawMessage.includes('rate limit') || rawMessage.includes('429')) {
           errorMessage = 'Muitas tentativas de login. Aguarde 60 segundos e tente novamente.';
           console.warn('⏱️ Rate limit atingido - aguarde 60 segundos');
-        } else if (error.message.includes('Invalid login credentials')) {
+        } else if (rawMessage.includes('Invalid login credentials')) {
           errorMessage = t('auth.invalidCredentials');
-        } else if (error.message.includes('Email not confirmed')) {
+        } else if (rawMessage.includes('Email not confirmed')) {
           errorMessage = t('auth.emailNotConfirmed');
           showToast(t('auth.emailNotConfirmed'), 'error');
         }
-        
-        setError(errorMessage);
+
+  setError(errorMessage);
+  // Show toast (consistent with the rest of the app) instead of Alert to avoid overlay.
+  showToast(errorMessage, 'error');
         return;
       }
 
