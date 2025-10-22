@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FUT - Reset Password</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; background:#071018; color:#e6eef8 }
+    .box { width:100%; max-width:520px; padding:22px; text-align:center; border-radius:10px; background:rgba(255,255,255,0.03) }
+    input { width:100%; padding:10px 12px; margin-top:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background:rgba(255,255,255,0.02); color:#eaf6f0 }
+    button { margin-top:12px; padding:10px 14px; border-radius:8px; background:#20c997; color:#02261d; border:none; font-weight:600 }
+    .muted { color:#9fb3be }
+    .small { font-size:13px }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1 id="title">Repor palavra-passe</h1>
+    <p id="desc" class="muted">Aguarde enquanto analisamos o link de redefinição.</p>
+
+    <div id="form" style="display:none">
+      <form id="pwForm">
+        <input id="pw" name="pw" type="password" placeholder="Nova palavra-passe" />
+        <input id="pw2" name="pw2" type="password" placeholder="Confirmar palavra-passe" />
+        <button id="submit" type="submit">Atualizar palavra-passe</button>
+      </form>
+    </div>
+
+    <div id="actions" style="margin-top:14px;display:flex;gap:8px;justify-content:center">
+      <a id="openApp" class="button" style="display:none">Abrir app</a>
+      <button id="copyTicket" style="display:none;background:#0ea5e9;color:#021728;border-radius:8px;padding:10px 12px;border:none;font-weight:600">Copiar ticket</button>
+    </div>
+
+    <div id="info" style="margin-top:12px"></div>
+    <!-- debug params (hidden in production) -->
+    <pre id="debug" style="text-align:left;white-space:pre-wrap;background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-top:12px;display:none"></pre>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js"></script>
+  <script>
+    (function(){
+      const rawHash = window.location.hash ? window.location.hash.substring(1) : '';
+      const rawQuery = window.location.search ? window.location.search.substring(1) : '';
+
+      const hashParams = rawHash ? new URLSearchParams(rawHash) : new URLSearchParams();
+      const queryParams = rawQuery ? new URLSearchParams(rawQuery) : new URLSearchParams();
+      const combined = new URLSearchParams();
+      for (const [k,v] of queryParams) combined.append(k,v);
+      for (const [k,v] of hashParams) combined.append(k,v);
+
+      const paramsObj = {};
+      for (const [k,v] of combined) paramsObj[k] = v;
+      const debugEl = document.getElementById('debug');
+      // Only show debug output if explicitly requested via ?debug=1
+      if (queryParams.has('debug') && queryParams.get('debug') === '1' && debugEl) {
+        debugEl.textContent = JSON.stringify(paramsObj, null, 2) || '(vazio)';
+        debugEl.style.display = 'block';
+      }
+
+      const info = document.getElementById('info');
+      const form = document.getElementById('form');
+      const title = document.getElementById('title');
+      const desc = document.getElementById('desc');
+
+      const SUPABASE_URL = 'https://yfekpdyinxaxjofkqvbe.supabase.co';
+      const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZWtwZHlpbnhheGpvZmtxdmJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxMTI4NzUsImV4cCI6MjA3NTY4ODg3NX0.YBm8otsxnn2oXtH4E-SaQO_5-6nlIhJ1R0Cowr7o71Q';
+
+      function runWithSupabase(supabase) {
+        const hasAccessToken = combined.has('access_token') || combined.has('refresh_token');
+        // Accept Supabase verify token param as ticket
+        const hasTicket = combined.has('ticket') || combined.has('token');
+
+        const openAppEl = document.getElementById('openApp');
+        const copyTicketEl = document.getElementById('copyTicket');
+
+        if (hasAccessToken) {
+          title.textContent = 'Sessão detectada';
+          desc.textContent = 'Pode alterar a palavra-passe abaixo.';
+
+          // Try to set session so we can call updateUser and then show the form only if setSession succeeds
+          const access = combined.get('access_token');
+          const refresh = combined.get('refresh_token');
+          if (access) {
+            supabase.auth.setSession({ access_token: access, refresh_token: refresh }).then(({ error }) => {
+              if (error) {
+                title.textContent = 'Link inválido ou já expirado';
+                desc.textContent = 'O link parece inválido ou já expirou. Pede um novo link se necessário.';
+                info.innerHTML = '<p style="color:#ffb4b4">Não foi possível iniciar sessão a partir do token.</p>';
+              } else {
+                form.style.display = 'block';
+              }
+            }).catch(() => {
+              title.textContent = 'Link inválido ou já expirado';
+              desc.textContent = 'O link parece inválido ou já expirou.';
+            });
+          } else {
+            // No access token in fragment; cannot update user here — instruct to open app or use server endpoint
+            title.textContent = 'Link inválido ou já expirado';
+            desc.textContent = 'Não foi possível iniciar sessão no browser.';
+            info.innerHTML = '<p class="muted">Abra a app para concluir ou solicite um novo link.</p>';
+          }
+
+          // mostra botão para abrir app (deep-link com fragmento)
+          if (rawHash || rawQuery) {
+            const appScheme = 'futapp://auth';
+            const appUrl = rawHash ? (appScheme + '#' + rawHash) : (rawQuery ? (appScheme + '?' + rawQuery) : appScheme);
+            openAppEl.style.display = 'inline-block';
+            openAppEl.setAttribute('href', appUrl);
+            openAppEl.setAttribute('target', '_self');
+          }
+        } else if (hasTicket) {
+          title.textContent = 'Ticket de redefinição recebido';
+          desc.textContent = 'Abra a app móvel para concluir a redefinição ou copie o ticket e cole quando solicitado.';
+          info.innerHTML = '<p class="muted">Ticket detectado. Se a app não processar automaticamente, abra a app ou copie o ticket manualmente.</p>';
+
+          // mostra botão para abrir a app com o ticket no fragmento
+          const ticketParam = combined.get('ticket') || combined.get('token');
+          const appScheme = 'futapp://auth';
+          const deep = ticketParam ? (appScheme + '?ticket=' + encodeURIComponent(ticketParam)) : (rawHash ? (appScheme + '#' + rawHash) : appScheme);
+          openAppEl.style.display = 'inline-block';
+          openAppEl.setAttribute('href', deep);
+          openAppEl.setAttribute('target', '_self');
+
+          // mostra botão copiar ticket
+          if (ticketParam) {
+            copyTicketEl.style.display = 'inline-block';
+            copyTicketEl.addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(ticketParam);
+                alert('Ticket copiado para a área de transferência.');
+              } catch (e) {
+                prompt('Copie o ticket manualmente:', ticketParam);
+              }
+            });
+          }
+        } else {
+          title.textContent = 'Link inválido ou expirado';
+          desc.textContent = 'Não foi possível encontrar parâmetros válidos para redefinir a palavra-passe.';
+        }
+
+        // submit handler (form is already present)
+        const pwForm = document.getElementById('pwForm');
+        const submitBtn = document.getElementById('submit');
+        pwForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const pw = document.getElementById('pw').value;
+          const pw2 = document.getElementById('pw2').value;
+          if (!pw || pw.length < 6) return alert('A palavra-passe deve ter pelo menos 6 caracteres.');
+          if (pw !== pw2) return alert('As palavras-passe não coincidem.');
+
+          // Disable submit to avoid duplicates
+          submitBtn.disabled = true;
+          const previousText = submitBtn.textContent;
+          submitBtn.textContent = 'A atualizar...';
+
+          try {
+            const { data, error } = await supabase.auth.updateUser({ password: pw });
+            if (error) {
+              alert('Erro ao atualizar palavra-passe: ' + (error.message || JSON.stringify(error)));
+            } else {
+              alert('Palavra-passe atualizada com sucesso. Pode voltar à app.');
+              title.textContent = 'Palavra-passe atualizada';
+              desc.textContent = 'Feche esta página e volte à app.';
+              form.style.display = 'none';
+            }
+          } catch (err) {
+            alert('Erro de rede ou inesperado: ' + (err.message || err));
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = previousText;
+          }
+        });
+      }
+
+      // Try to obtain the UMD global; if not available yet, poll for a short period
+      const tryGetAndRun = () => {
+        const lib = window.supabaseJs || window.supabase || window.supabaseClient;
+        if (lib) {
+          const client = lib.createClient(SUPABASE_URL, SUPABASE_ANON);
+          runWithSupabase(client);
+          return true;
+        }
+        return false;
+      };
+
+      if (!tryGetAndRun()) {
+        // poll for up to 3s
+        let waited = 0;
+        const iv = setInterval(() => {
+          if (tryGetAndRun()) { clearInterval(iv); return; }
+          waited += 150;
+          if (waited > 3000) {
+            clearInterval(iv);
+            info.innerHTML = '<p class="muted">Erro interno: biblioteca de autenticação não carregada. Atualiza a página e tenta novamente.</p>';
+          }
+        }, 150);
+      }
+
+    })();
+  </script>
+</body>
+</html>

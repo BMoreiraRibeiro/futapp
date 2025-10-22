@@ -13,32 +13,187 @@
 </head>
 <body>
   <div class="box">
-    <h1>Redireccionando para a app…</h1>
-    <p class="muted">Se não abrir automaticamente, clique em "Abrir app". Se não tiver a app instalada, será mostrado o fragmento.</p>
-    <a id="open" class="button">Abrir app</a>
-    <pre id="fallback" style="text-align:left;margin-top:16px;background:rgba(0,0,0,0.25);padding:12px;border-radius:8px;overflow:auto;max-height:240px"></pre>
+    <h1 id="title">A processar confirmação…</h1>
+    <p id="subtitle" class="muted">Aguarde um momento enquanto analisamos o resultado.</p>
+    <a id="open" class="button" style="display:none">Abrir app</a>
+  <!-- debug params (hidden in production) -->
+  <pre id="fallback" style="text-align:left;white-space:pre-wrap;background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-top:12px;display:none"></pre>
+  <div id="result" style="margin-top:16px"></div>
   </div>
 
   <script>
+    // Load Supabase JS dynamically (for setSession when tokens are present)
+    (function loadSupabase(){
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.min.js';
+      s.defer = true;
+      document.head.appendChild(s);
+    })();
     (function(){
-      // Lê fragmento (#...) ou query string (?...) e reencaminha para o deep link da app.
-      const hash = window.location.hash ? window.location.hash.substring(1) : '';
-      const query = (!hash && window.location.search) ? window.location.search.substring(1) : '';
-      const params = hash || query || '';
-      const appScheme = 'futapp://auth-callback';
-      const appUrl = params ? (appScheme + '#' + params) : appScheme;
+      // Lê fragmento (#...) e query string (?...) e converte em URLSearchParams
+      const rawHash = window.location.hash ? window.location.hash.substring(1) : '';
+      const rawQuery = window.location.search ? window.location.search.substring(1) : '';
 
-      // Atualiza UI
-      document.getElementById('open').href = appUrl;
-      document.getElementById('fallback').textContent = appUrl;
+      const hashParams = rawHash ? new URLSearchParams(rawHash) : new URLSearchParams();
+      const queryParams = rawQuery ? new URLSearchParams(rawQuery) : new URLSearchParams();
 
-      // Tenta abrir a app automaticamente
-      // Nota: os browsers modernos podem bloquear tentativas automáticas; ainda assim esta é a melhor tentativa.
-      setTimeout(() => {
-        window.location.href = appUrl;
-      }, 500);
+      // Prioriza fragmento (onde o Supabase normalmente coloca tokens), mas combina ambos para inspeção
+      const combined = new URLSearchParams();
+      for (const [k, v] of queryParams) combined.append(k, v);
+      for (const [k, v] of hashParams) combined.append(k, v);
 
-      // Se quiser, após X ms mostrar instruções adicionais
+      // Conveniência: converte para objeto para exibição
+      const paramsObj = {};
+      for (const [k, v] of combined) paramsObj[k] = v;
+
+      // Não expor tokens/params sensíveis no UI público.
+      // Apenas habilitar debug se houver ?debug=1 na query (útil para troubleshooting interno).
+      const fallbackEl = document.getElementById('fallback');
+      if (queryParams.has('debug') && queryParams.get('debug') === '1') {
+        fallbackEl.textContent = JSON.stringify(paramsObj, null, 2) || '(vazio)';
+        fallbackEl.style.display = 'block';
+      }
+
+  const titleEl = document.getElementById('title');
+  const subtitleEl = document.getElementById('subtitle');
+  const openEl = document.getElementById('open');
+  const resultEl = document.getElementById('result');
+  const appScheme = 'futapp://auth';
+  const appUrl = rawHash ? (appScheme + '#' + rawHash) : (rawQuery ? (appScheme + '?' + rawQuery) : appScheme);
+      // Regras simples para determinar sucesso/erro/reset:
+      // - Se existir parâmetro de erro -> erro
+      // - Se existir access_token ou refresh_token -> sucesso (login)
+      // - Se existir ticket ou type=recovery -> é pedido de reset de password
+  const hasError = combined.has('error') || combined.has('error_description') || combined.has('error_message');
+  const hasTokens = combined.has('access_token') || combined.has('refresh_token');
+  // Supabase verify may include ticket in 'ticket' or 'token' param and indicate type=recovery
+  const hasTicket = combined.has('ticket') || combined.has('token') || (combined.get('type') === 'recovery');
+
+      // Caso especial: reset (ticket-only) — oferecer link para reset.html
+      const isResetFlow = hasTicket && !hasTokens;
+
+      // Caso signup: se houver redirect_to explicita, redirecionar para a URL (UX-friendly delay)
+      const isSignup = combined.get('type') === 'signup' || combined.get('type') === 'invite';
+      const redirectToParam = combined.get('redirect_to') || combined.get('redirect_to');
+      if (isSignup && redirectToParam) {
+        titleEl.textContent = 'Confirmação recebida — redirecionando...';
+        subtitleEl.textContent = 'Será redirecionado para o site de origem.';
+        // Mostrar link caso o redirecionamento automático falhe
+        openEl.style.display = 'inline-block';
+        openEl.textContent = 'Ir para o site';
+        openEl.setAttribute('href', redirectToParam);
+        openEl.setAttribute('target', '_self');
+        // Aguarda 1800ms para mostrar a mensagem e depois redireciona
+        setTimeout(() => {
+          try { window.location.href = redirectToParam; } catch (e) { /* ignore */ }
+        }, 1800);
+        return; // já tratámos o caso
+      }
+
+      if (hasError) {
+        // Preferir uma mensagem genérica de link inválido/expirado em vez de expor detalhes de erro
+        titleEl.textContent = 'Link inválido ou já expirado';
+        subtitleEl.textContent = 'O link parece inválido ou já expirou. Pede um novo link se necessário.';
+        resultEl.innerHTML = '<p style="color:#ffb4b4">Se pensas que isto é um erro, tenta novamente ou contacta o suporte.</p>';
+        openEl.style.display = 'none';
+      } else if (isResetFlow) {
+        // Redirect immediately to reset.html preserving original fragment/query so reset page handles the flow
+        const resetUrl = (function(){
+          if (rawHash) return 'reset.html#' + rawHash;
+          if (rawQuery) return 'reset.html?' + rawQuery;
+          return 'reset.html';
+        })();
+        try { window.location.href = resetUrl; } catch (e) { /* ignore */ }
+        return;
+      } else if (hasTokens) {
+        // If tokens are present but it's a recovery flow we redirect to reset.html (handled earlier).
+        // Otherwise, try to set the session in the browser so we can offer updateUser or open the app.
+        const SUPABASE_URL = 'https://yfekpdyinxaxjofkqvbe.supabase.co';
+        const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmZWtwZHlpbnhheGpvZmtxdmJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxMTI4NzUsImV4cCI6MjA3NTY4ODg3NX0.YBm8otsxnn2oXtH4E-SaQO_5-6nlIhJ1R0Cowr7o71Q';
+        const access = combined.get('access_token');
+        const refresh = combined.get('refresh_token');
+  // appScheme/appUrl are defined above
+
+        // Wait for the supabase script to load before using it
+        const trySetSession = () => {
+          if (!window.supabaseJs) {
+            // retry shortly
+            setTimeout(trySetSession, 150);
+            return;
+          }
+          const supabase = window.supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON);
+          if (access) {
+            supabase.auth.setSession({ access_token: access, refresh_token: refresh }).then(({ error }) => {
+              if (error) {
+                resultEl.innerHTML = '<p style="color:#ffb4b4">Erro ao iniciar sessão no browser. Pode abrir a app manualmente.</p>';
+                openEl.style.display = 'inline-block';
+                openEl.textContent = 'Abrir app';
+                openEl.setAttribute('href', appUrl);
+                openEl.setAttribute('target', '_self');
+              } else {
+                titleEl.textContent = 'Sessão ativa';
+                subtitleEl.textContent = 'Sessão criada no browser. Pode abrir a app ou alterar a password.';
+                openEl.style.display = 'inline-block';
+                openEl.textContent = 'Abrir app';
+                openEl.setAttribute('href', appUrl);
+                openEl.setAttribute('target', '_self');
+                // Add a button to go to reset.html (preserves tokens) to allow updateUser
+                const changeBtn = document.createElement('a');
+                changeBtn.className = 'button';
+                changeBtn.style.marginLeft = '8px';
+                changeBtn.textContent = 'Alterar password';
+                const resetUrl = rawHash ? ('reset.html#' + rawHash) : (rawQuery ? ('reset.html?' + rawQuery) : 'reset.html');
+                changeBtn.setAttribute('href', resetUrl);
+                changeBtn.setAttribute('target', '_self');
+                resultEl.appendChild(changeBtn);
+              }
+            });
+          } else {
+            // No access token but has refresh/token—fallback to offering open app
+            openEl.style.display = 'inline-block';
+            openEl.textContent = 'Abrir app';
+            openEl.setAttribute('href', appUrl);
+            openEl.setAttribute('target', '_self');
+            resultEl.innerHTML = '<p class="muted">Sessão não completa no browser — abra a app para concluir.</p>';
+          }
+        };
+        trySetSession();
+        // Caso especial: se for recovery mas os tokens foram retornados, abrir reset.html para permitir updateUser
+        if (combined.get('type') === 'recovery') {
+          const resetUrl = (function(){
+            if (rawHash) return 'reset.html#' + rawHash;
+            if (rawQuery) return 'reset.html?' + rawQuery;
+            return 'reset.html';
+          })();
+          titleEl.textContent = 'Sessão detectada — a abrir redefinição...';
+          subtitleEl.textContent = 'Abrindo a página de redefinição para permitir alterar a palavra-passe.';
+          openEl.style.display = 'inline-block';
+          openEl.textContent = 'Abrir página de redefinição';
+          openEl.setAttribute('href', resetUrl);
+          openEl.setAttribute('target', '_self');
+          setTimeout(() => { try { window.location.href = resetUrl; } catch (e) {} }, 1200);
+          return;
+        }
+        titleEl.textContent = 'Registo confirmado com sucesso';
+        subtitleEl.textContent = 'Pode agora regressar à app ou fechar esta página.';
+        openEl.style.display = 'inline-block';
+        // Constrói um deep link para abrir a app caso o utilizador queira
+        const appScheme = 'futapp://auth';
+        const appUrl = rawHash ? (appScheme + '#' + rawHash) : (rawQuery ? (appScheme + '?' + rawQuery) : appScheme);
+        openEl.setAttribute('href', appUrl);
+        // deep-links costumam funcionar melhor com target _self
+        openEl.setAttribute('target', '_self');
+        resultEl.innerHTML = '<p style="color:#b9f5d0">Confirmação detectada — pode abrir a app ou fechar esta página.</p>';
+      } else {
+        titleEl.textContent = 'Resultado desconhecido';
+        subtitleEl.textContent = 'Não foram encontrados parâmetros de confirmação válidos.';
+        openEl.style.display = 'inline-block';
+        const appScheme = 'futapp://auth';
+        const appUrl = rawHash ? (appScheme + '#' + rawHash) : (rawQuery ? (appScheme + '?' + rawQuery) : appScheme);
+        openEl.setAttribute('href', appUrl);
+        openEl.setAttribute('target', '_self');
+        resultEl.innerHTML = '<p class="muted">Se tiver a app instalada, tente abrir para continuar.</p>';
+      }
     })();
   </script>
 </body>

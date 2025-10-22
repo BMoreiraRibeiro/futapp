@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { Toast } from '../components/Toast';
@@ -40,6 +40,8 @@ export default function AuthScreen() {
   const { session } = useAuth();
   const [ticketFromLink, setTicketFromLink] = useState<string | undefined>(undefined);
 
+  const searchParams = useLocalSearchParams();
+
   // Detect ticket from initial Linking URL (deep links or fallback page)
   useEffect(() => {
     (async () => {
@@ -58,6 +60,18 @@ export default function AuthScreen() {
       }
     })();
   }, []);
+
+  // Also accept ticket via router search params (when deep-link handler pushes with params)
+  useEffect(() => {
+    try {
+      if (searchParams && (searchParams as any).ticket) {
+        setTicketFromLink((searchParams as any).ticket as string);
+        setMode('resetPassword');
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [searchParams]);
 
   // Verifica conectividade à internet
   useEffect(() => {
@@ -224,7 +238,7 @@ export default function AuthScreen() {
         email,
         password,
         options: {
-          emailRedirectTo: 'fut://auth/callback',
+          emailRedirectTo: 'https://futebolasquartas.netlify.app',
           data: {
             player_name: playerName.trim()
           }
@@ -309,10 +323,13 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
 
-      // Sending recovery email - logs removed for production
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'fut://auth/reset-password',
+      // Sending recovery email - log full response for debugging
+      let res = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://futebolasquartas.netlify.app',
       });
+      // Detailed debug output for investigating missing href in recovery emails.
+      console.debug('resetPasswordForEmail full response:', res);
+      let { data, error } = res;
 
       if (error) {
         console.error('❌ Erro ao enviar email de recuperação:', error);
@@ -426,8 +443,12 @@ export default function AuthScreen() {
             editable={!loading}
           />
 
-          {/* Reset password flow when ticket is present */}
-          {mode === 'resetPassword' && (
+          {/* Reset password UI
+              - If we have a ticket from the link (ticketFromLink), show the change-password form.
+              - If we don't have a ticket, show the Send Reset Email button (handleResetPassword).
+          */}
+          {ticketFromLink ? (
+            // Only allow changing password when we actually have a ticket from the link
             <>
               <TextInput
                 style={[
@@ -451,7 +472,6 @@ export default function AuthScreen() {
                   setLoading(true);
                   try {
                     if (session) {
-                      // usuário já autenticado -> pode atualizar password
                       const { error } = await supabase.auth.updateUser({ password: newPassword });
                       if (error) {
                         showToast('Erro ao atualizar password: ' + error.message, 'error');
@@ -461,9 +481,8 @@ export default function AuthScreen() {
                         switchMode('login');
                       }
                     } else {
-                      // Sem sessão -> instruir a usar o endpoint server-side que troca ticket por sessão
-                      // O deploy de produção deve oferecer um endpoint para trocar ticket->session
-                      showToast('Abra o link do email na app ou use o endpoint de troca de ticket', 'info');
+                      // Sem sessão mas com ticket — show info (app should exchange ticket for session)
+                      showToast('Abra o link do email na app para finalizar a redefinição, ou use o endpoint server-side', 'info');
                     }
                   } catch (e) {
                     showToast('Erro desconhecido ao atualizar password', 'error');
@@ -475,7 +494,7 @@ export default function AuthScreen() {
                 <Text style={[styles.primaryButtonText, { color: '#fff' }]}>Alterar password</Text>
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
 
           {/* Nome do Jogador (apenas no modo registo) */}
           {mode === 'register' && (
@@ -605,7 +624,8 @@ export default function AuthScreen() {
             </TouchableOpacity>
           )}
 
-          {mode === 'resetPassword' && (
+          {/* Send reset email button when user explicitly opens Reset Password (no ticket present) */}
+          {mode === 'resetPassword' && !ticketFromLink && (
             <TouchableOpacity 
               style={[
                 styles.button,
