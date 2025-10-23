@@ -19,17 +19,13 @@ WebBrowser.maybeCompleteAuthSession();
 // Mutex para evitar double-exchange de authorization code
 let __isExchanging = false;
 async function runWithExchangeLock<T>(fn: () => Promise<T>) {
-  // se já estiver a trocar, aguarda até liberar (com timeout)
   const start = Date.now();
   while (__isExchanging) {
-    // evita bloqueio infinito: timeout 5s
     if (Date.now() - start > 5000) break;
-    // pequeno yield
     await new Promise(res => setTimeout(res, 50));
   }
 
   if (__isExchanging) {
-    // ainda está ocupado -> rejeita para evitar múltiplas trocas concorrentes
     throw new Error('exchange locked');
   }
 
@@ -50,7 +46,6 @@ const handleDeepLink = async (event: { url: string }) => {
 
   try {
     // Primeiro verificar se recebemos um code (PKCE authorization code flow)
-    // url pode ser: futapp://auth?code=... ou futapp://auth#code=...
     let code: string | null = null;
 
     if (url.includes('?')) {
@@ -67,82 +62,45 @@ const handleDeepLink = async (event: { url: string }) => {
 
     if (code) {
       console.log('🔁 deep-link: received code, exchanging for session');
+      
+      // CRÍTICO: Verificar se já processámos este código
+      if (__handledAuthCodes.has(code)) {
+        console.log('⏭️ Code already processed, skipping exchange:', code.substring(0, 8) + '...');
+        return;
+      }
+
+      // Verificar se já temos uma sessão ativa
       try {
-        const exchangeCodeWithRetry = async (codeToExchange: string, tries = 3, delayMs = 200) => {
-          // If another handler already exchanged this code, skip
-          if (__handledAuthCodes.has(codeToExchange)) {
-            console.log('DEBUG: code already handled (deep-link), skipping exchange:', codeToExchange);
-            return { data: null, error: null } as any;
-          }
+        const { data: existingSession } = await supabase.auth.getSession();
+        if (existingSession?.session) {
+          console.log('✅ Session already exists, marking code as handled');
+          __handledAuthCodes.add(code);
+          return;
+        }
+      } catch (sessErr) {
+        console.log('⚠️ Error checking existing session:', sessErr);
+      }
 
-          // If we already have a session, skip exchange and mark handled
-          try {
-            const { data: existingSession } = await supabase.auth.getSession();
-            if (existingSession?.session) {
-              console.log('DEBUG: session already exists (deep-link), skipping exchange for code:', codeToExchange);
-              __handledAuthCodes.add(codeToExchange);
-              return { data: null, error: null } as any;
-            }
-          } catch (sessErr) {
-            console.log('DEBUG: error checking existing session before exchange (deep-link):', sessErr);
-          }
+      try {
+        // Marcar código como "em processamento" ANTES de fazer exchange
+        __handledAuthCodes.add(code);
 
-          // CRÍTICO: Capturar e preservar o verifier ANTES de qualquer tentativa de exchange
-          const SUPABASE_URL = 'https://yfekpdyinxaxjofkqvbe.supabase.co';
-          const storageKey = `sb-${SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`;
-          const verifierKey = `${storageKey}-code-verifier`;
-          const altKey = `sb-${SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token-code-verifier`;
+        // Fazer exchange UMA ÚNICA VEZ com o mutex para evitar concorrência
+        const { data, error } = await runWithExchangeLock(() => 
+          supabase.auth.exchangeCodeForSession(code)
+        );
 
-          let savedVerifier = await AsyncStorage.getItem(verifierKey);
-          if (!savedVerifier) {
-            savedVerifier = await AsyncStorage.getItem(altKey);
-          }
-
-          console.log('🔐 Verifier captured before exchange:', savedVerifier ? 'EXISTS' : 'MISSING');
-          if (!savedVerifier) {
-            throw new Error('Code verifier missing before exchange - OAuth flow corrupted');
-          }
-
-          // Retry logic with re-inserting verifier before each attempt
-          for (let attempt = 1; attempt <= tries; attempt++) {
-            try {
-              console.log(`🔄 deep-link exchange attempt ${attempt}/${tries}`);
-              // Re-insert the verifier because Supabase may consume it on exchange
-              await AsyncStorage.setItem(verifierKey, savedVerifier);
-
-              const { data, error } = await runWithExchangeLock(() => supabase.auth.exchangeCodeForSession(codeToExchange));
-              if (error) {
-                console.error(`❌ exchangeCodeForSession error (deep-link) attempt ${attempt}:`, error);
-                const msg = (error?.message || '').toLowerCase();
-                if (attempt < tries && (msg.includes('code_verifier') || msg.includes('both auth code and code verifier'))) {
-                  console.warn(`⚠️ Server reported missing verifier, re-inserting and retrying in ${300 * attempt}ms`);
-                  // re-insert and backoff
-                  await AsyncStorage.setItem(verifierKey, savedVerifier);
-                  await new Promise(res => setTimeout(res, 300 * attempt));
-                  continue;
-                }
-                return { data, error };
-              }
-
-              // success - mark code as handled
-              __handledAuthCodes.add(codeToExchange);
-              return { data, error: null } as any;
-            } catch (ex) {
-              console.error(`❌ exception during exchangeCodeForSession (deep-link) attempt ${attempt}:`, ex);
-              if (attempt < tries) await new Promise(res => setTimeout(res, delayMs));
-              else throw ex;
-            }
-          }
-        };
-
-        const result = await exchangeCodeWithRetry(code);
-        if (result?.error) {
-          console.error('❌ exchangeCodeForSession error (deep-link) final:', result.error);
+        if (error) {
+          console.error('❌ exchangeCodeForSession error:', error);
+          // Se falhar, remover do set para permitir nova tentativa manual
+          __handledAuthCodes.delete(code);
         } else {
-          console.log('✅ Session established via exchangeCodeForSession (deep-link)');
+          console.log('✅ Session established via exchangeCodeForSession');
         }
       } catch (ex) {
-        console.error('❌ exception during exchangeCodeForSession (deep-link):', ex);
+        console.error('❌ exception during exchangeCodeForSession:', ex);
+        // Se falhar, remover do set para permitir nova tentativa manual
+        __handledAuthCodes.delete(code);
       }
       return;
     }
@@ -257,7 +215,7 @@ export default function AuthScreen() {
     if (ticketFromLink) setMode('resetPassword');
   }, [ticketFromLink]);
 
-  // Redirect se já está autenticado - DEVE ser o último return
+  // Redirect se já está autenticado
   if (session) {
     return <Redirect href="/(tabs)" />;
   }
@@ -314,29 +272,15 @@ export default function AuthScreen() {
       const redirectUrl = Linking.createURL('auth');
       console.log('📱 Redirect URL:', redirectUrl);
 
-      // DEBUG: verificar se code_verifier já existe antes de iniciar o fluxo
-      try {
-        const supabaseRefMatch = /https:\/\/(.*?)\.supabase\.co/.exec('https://yfekpdyinxaxjofkqvbe.supabase.co');
-        const ref = supabaseRefMatch ? supabaseRefMatch[1] : 'unknown';
-        const verifierKey = `sb-${ref}-auth-token-code-verifier`;
-        const debug1 = await AsyncStorage.getItem(verifierKey);
-        console.log('DEBUG (before signIn): verifierKey:', verifierKey, 'value:', debug1);
-        const allKeys = await AsyncStorage.getAllKeys();
-        const sbKeys = allKeys.filter(k => k && k.startsWith('sb-'));
-        console.log('DEBUG (before signIn): sb keys:', sbKeys);
-      } catch (err) {
-        console.log('DEBUG (before signIn) error reading AsyncStorage:', err);
-      }
-
       // Iniciar fluxo OAuth
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: false, // Importante: deixar false para mobile
+          skipBrowserRedirect: false,
           queryParams: {
             access_type: 'offline',
-            prompt: 'select_account', // Força a seleção de conta
+            prompt: 'select_account',
           },
         },
       });
@@ -350,34 +294,22 @@ export default function AuthScreen() {
 
       console.log('🔗 URL OAuth gerada:', data?.url);
 
-      // DEBUG: verificar code_verifier logo após signInWithOAuth retornou
-      try {
-        const supabaseRefMatch2 = /https:\/\/(.*?)\.supabase\.co/.exec('https://yfekpdyinxaxjofkqvbe.supabase.co');
-        const ref2 = supabaseRefMatch2 ? supabaseRefMatch2[1] : 'unknown';
-        const verifierKey2 = `sb-${ref2}-auth-token-code-verifier`;
-        const debugMid = await AsyncStorage.getItem(verifierKey2);
-        console.log('DEBUG (after signIn): verifierKey:', verifierKey2, 'value:', debugMid);
-        const allKeysMid = await AsyncStorage.getAllKeys();
-        const sbKeysMid = allKeysMid.filter(k => k && k.startsWith('sb-'));
-        console.log('DEBUG (after signIn): sb keys:', sbKeysMid);
-      } catch (err) {
-        console.log('DEBUG (after signIn) error reading AsyncStorage:', err);
-      }
-
       // Abrir browser in-app para autenticação
       if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url,
           redirectUrl,
           {
-            showInRecents: true, // Mostrar no histórico (Android)
+            showInRecents: true,
           }
         );
 
         console.log('📊 Resultado do browser:', result);
 
         if (result.type === 'success' && result.url) {
-          // Extrair tokens da URL de retorno
+          // Aguardar um momento para o deep-link handler processar primeiro
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
           const url = result.url;
           let params: any = {};
 
@@ -400,10 +332,23 @@ export default function AuthScreen() {
           // PKCE flow: provider returns a code which we must exchange for a session
           if (params.code) {
             try {
-              const exchangeCodeWithRetry = async (codeToExchange: string, tries = 3, delayMs = 200) => {
-                // If another handler already exchanged this code, skip
+              const exchangeCodeWithRetry = async (codeToExchange: string) => {
+                // CRÍTICO: Verificar se já processámos este código
                 if (__handledAuthCodes.has(codeToExchange)) {
-                  console.log('DEBUG: code already handled (browser result), skipping exchange:', codeToExchange);
+                  console.log('⏭️ Code already handled (browser), skipping:', codeToExchange.substring(0, 8) + '...');
+                  // Verificar se já temos sessão
+                  const { data: existingSession } = await supabase.auth.getSession();
+                  if (existingSession?.session) {
+                    console.log('✅ Session confirmed, proceeding with user setup');
+                    // Continuar com setup do utilizador
+                    const { data: getUserData } = await supabase.auth.getUser();
+                    const user = getUserData?.user;
+                    if (user) {
+                      const playerName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Jogador';
+                      await supabase.auth.updateUser({ data: { player_name: playerName } });
+                    }
+                    showToast('Login com Google realizado!', 'success');
+                  }
                   return { data: null, error: null } as any;
                 }
 
@@ -411,76 +356,36 @@ export default function AuthScreen() {
                 try {
                   const { data: existingSession } = await supabase.auth.getSession();
                   if (existingSession?.session) {
-                    console.log('DEBUG: session already exists (browser result), skipping exchange for code:', codeToExchange);
+                    console.log('✅ Session already exists (browser), marking code as handled');
                     __handledAuthCodes.add(codeToExchange);
                     return { data: null, error: null } as any;
                   }
                 } catch (sessErr) {
-                  console.log('DEBUG: error checking existing session before exchange (browser result):', sessErr);
+                  console.log('⚠️ Error checking session (browser):', sessErr);
                 }
 
-                const storageKey = (supabase as any).auth?.storageKey || (supabase as any).auth?.storage_key || 'supabase-auth-token';
-                const verifierKey = `${storageKey}-code-verifier`;
+                // Marcar código como "em processamento" ANTES de fazer exchange
+                __handledAuthCodes.add(codeToExchange);
 
-                // Also build the alternative key form used in other debug spots
-                const supabaseUrlMatch = /https:\/\/(.*?)\.supabase\.co/.exec('https://yfekpdyinxaxjofkqvbe.supabase.co');
-                const ref = supabaseUrlMatch ? supabaseUrlMatch[1] : null;
-                const altVerifierKey = ref ? `sb-${ref}-auth-token-code-verifier` : null;
-
-                // Capture the verifier BEFORE attempts (critical: Supabase may consume it on successful exchange)
-                let savedVerifier = null as string | null;
                 try {
-                  const vPrimary = await AsyncStorage.getItem(verifierKey);
-                  const vAlt = altVerifierKey ? await AsyncStorage.getItem(altVerifierKey) : null;
-                  savedVerifier = vPrimary || vAlt;
-                  const allKeysPre = await AsyncStorage.getAllKeys();
-                  const sbKeysPre = allKeysPre.filter(k => k && k.startsWith('sb-'));
-                  console.log('DEBUG (pre-exchange): storageKey:', storageKey, 'verifierKey:', verifierKey, 'value:', savedVerifier ? 'EXISTS' : 'MISSING');
-                  console.log('DEBUG (pre-exchange): altVerifierKey:', altVerifierKey);
-                  console.log('DEBUG (pre-exchange): sb keys:', sbKeysPre);
-                } catch (preErr) {
-                  console.log('DEBUG (pre-exchange) error reading AsyncStorage:', preErr);
-                }
-
-                if (!savedVerifier) {
-                  // If we don't have a captured verifier, abort early to avoid repeated failing exchanges
-                  throw new Error('Code verifier missing before exchange (browser result) - OAuth flow corrupted');
-                }
-
-                for (let attempt = 1; attempt <= tries; attempt++) {
-                  try {
-                    // Re-insert the verifier because Supabase may consume it on exchange
-                    await AsyncStorage.setItem(verifierKey, savedVerifier as string);
-
-                    const v = await AsyncStorage.getItem(verifierKey);
-                    const vAltNow = altVerifierKey ? await AsyncStorage.getItem(altVerifierKey) : null;
-                    const allKeys = await AsyncStorage.getAllKeys();
-                    console.log(`DEBUG attempt ${attempt}: storageKey=${storageKey} verifierKey=${verifierKey} present:`, !!v);
-                    console.log(`DEBUG attempt ${attempt}: altVerifierKey=${altVerifierKey} present:`, !!vAltNow);
-                    console.log(`DEBUG attempt ${attempt}: sb keys:`, allKeys.filter(k => k && k.startsWith('sb-')));
-
-                    const { data, error } = await runWithExchangeLock(() => supabase.auth.exchangeCodeForSession(codeToExchange));
-                    if (error) {
-                      console.error(`❌ exchangeCodeForSession error attempt ${attempt}:`, error);
-                      const msg = (error?.message || '').toLowerCase();
-                      if (attempt < tries && (msg.includes('code_verifier') || msg.includes('both auth code and code verifier'))) {
-                        console.warn(`WARN: server reported missing code_verifier; re-inserting and retrying in ${delayMs}ms`);
-                        // Make sure the verifier is present again before waiting
-                        await AsyncStorage.setItem(verifierKey, savedVerifier as string);
-                        await new Promise(res => setTimeout(res, delayMs));
-                        continue; // retry
-                      }
-                      return { data, error };
-                    }
-
-                    // success - mark code as handled
-                    __handledAuthCodes.add(codeToExchange);
-                    return { data, error: null } as any;
-                  } catch (ex) {
-                    console.error(`❌ exception during exchangeCodeForSession attempt ${attempt}:`, ex);
-                    if (attempt < tries) await new Promise(res => setTimeout(res, delayMs));
-                    else throw ex;
+                  const { data, error } = await runWithExchangeLock(() => 
+                    supabase.auth.exchangeCodeForSession(codeToExchange)
+                  );
+                  
+                  if (error) {
+                    console.error('❌ exchangeCodeForSession error:', error);
+                    // Se falhar, remover do set para permitir nova tentativa
+                    __handledAuthCodes.delete(codeToExchange);
+                  } else {
+                    console.log('✅ Session established via exchangeCodeForSession (browser handler)');
                   }
+                  
+                  return { data, error };
+                } catch (ex) {
+                  console.error('❌ Exception during exchangeCodeForSession:', ex);
+                  // Se falhar, remover do set
+                  __handledAuthCodes.delete(codeToExchange);
+                  throw ex;
                 }
               };
 
@@ -489,7 +394,7 @@ export default function AuthScreen() {
                 console.error('❌ Erro ao trocar code por sessão (final):', result.error);
                 showToast('Erro ao processar login (exchange)', 'error');
               } else if (result?.data?.session) {
-                console.log('✅ Sessão obtida via exchangeCodeForSession');
+                console.log('✅ Sessão obtida via exchangeCodeForSession (browser)');
                 const { data: getUserData } = await supabase.auth.getUser();
                 const user = getUserData?.user;
                 if (user) {
@@ -497,9 +402,6 @@ export default function AuthScreen() {
                   await supabase.auth.updateUser({ data: { player_name: playerName } });
                 }
                 showToast('Login com Google realizado!', 'success');
-              } else {
-                console.error('❌ Exchange não retornou sessão:', result?.data);
-                showToast('Erro ao processar login', 'error');
               }
             } catch (ex) {
               console.error('❌ Exceção durante exchangeCodeForSession:', ex);
@@ -509,7 +411,6 @@ export default function AuthScreen() {
 
           // Fallback: implicit/fragment flow where access_token is present
           else if (access_token) {
-            // Definir sessão manualmente
             const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token,
               refresh_token,
@@ -522,11 +423,9 @@ export default function AuthScreen() {
 
             console.log('✅ Sessão definida com sucesso');
 
-            // Obter dados do usuário
             const { data: { user } } = await supabase.auth.getUser();
             
             if (user) {
-              // Usar o nome do Google como nome do jogador
               const playerName = user.user_metadata?.full_name || 
                                user.user_metadata?.name || 
                                user.email?.split('@')[0] || 
@@ -534,7 +433,6 @@ export default function AuthScreen() {
               
               console.log('👤 Nome do jogador extraído:', playerName);
               
-              // Atualizar metadata
               await supabase.auth.updateUser({
                 data: { player_name: playerName }
               });
