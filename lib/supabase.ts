@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, processLock } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 const supabaseUrl = 'https://yfekpdyinxaxjofkqvbe.supabase.co';
@@ -8,19 +8,21 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
+    storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true,
-    lock: processLock,
-  }
+    detectSessionInUrl: true, // Importante para OAuth
+    flowType: 'pkce', // Usar PKCE para maior segurança em mobile
+  },
+  // Configurações adicionais para melhor compatibilidade OAuth
+  global: {
+    headers: {
+      'X-Client-Info': `futapp-${Platform.OS}`,
+    },
+  },
 });
 
-// CRÍTICO: Tells Supabase Auth to continuously refresh the session automatically
-// if the app is in the foreground. When this is added, you will continue
-// to receive `onAuthStateChange` events with the `TOKEN_REFRESHED` or
-// `SIGNED_OUT` event if the user's session is terminated. This should
-// only be registered once.
+// Gerenciar refresh automático baseado no estado da app
 if (Platform.OS !== 'web') {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {

@@ -88,6 +88,11 @@ export default function PlayersScreen() {
     }
   };
 
+  const formatRating = (r: number | null | undefined) => {
+    if (r === null || r === undefined || isNaN(r as any)) return '-';
+    return Number.isInteger(r) ? String(r) : (Math.round((r as number) * 10) / 10).toFixed(1);
+  };
+
   const handleDeletePlayer = async (id_jogador: string, nome: string) => {
     setPlayerToDelete({id: id_jogador, name: nome});
     setDeleteConfirmVisible(true);
@@ -154,7 +159,7 @@ export default function PlayersScreen() {
       return;
     }
 
-    const rating = parseInt(playerRating);
+    const rating = parseFloat(playerRating);
     if (isNaN(rating)) {
       showToast('Rating deve ser um número', 'error');
       return;
@@ -252,7 +257,7 @@ export default function PlayersScreen() {
     <View style={[styles.playerCard, { backgroundColor: theme.cardBackground }]}> 
       <View style={styles.playerInfo}> 
         <Text style={[styles.playerName, { color: theme.text }]}>{item.nome}</Text> 
-        <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {item.rating}</Text> 
+  <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {formatRating(item.rating)}</Text> 
       </View> 
       <View style={styles.playerActions}> 
         <TouchableOpacity 
@@ -350,7 +355,7 @@ export default function PlayersScreen() {
                   placeholderTextColor={theme.placeholderText}
                   value={playerRating}
                   onChangeText={setPlayerRating}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                 />
 
                 <View style={styles.modalActions}>
