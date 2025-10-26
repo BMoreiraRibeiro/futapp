@@ -16,6 +16,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Necessário para o fluxo OAuth no mobile
 WebBrowser.maybeCompleteAuthSession();
 
+// Helper to attempt to close auth/browser sessions in a robust way.
+async function safeCloseBrowser(label: string) {
+  try {
+    await WebBrowser.dismissAuthSession();
+    console.log(`🔒 ${label}: dismissed auth session`);
+  } catch (e) {
+    console.log(`⚠️ ${label}: dismissAuthSession failed:`, e);
+  }
+
+  try {
+    await WebBrowser.coolDownAsync();
+    console.log(`🔒 ${label}: coolDownAsync success`);
+  } catch (e) {
+    console.log(`⚠️ ${label}: coolDownAsync failed:`, e);
+  }
+  // Note: dismissBrowser may be unavailable on Android; prefer coolDownAsync + dismissAuthSession.
+}
+
 // Mutex para evitar double-exchange de authorization code
 let __isExchanging = false;
 async function runWithExchangeLock<T>(fn: () => Promise<T>) {
@@ -66,15 +84,27 @@ const handleDeepLink = async (event: { url: string }) => {
       // CRÍTICO: Verificar se já processámos este código
       if (__handledAuthCodes.has(code)) {
         console.log('⏭️ Code already processed, skipping exchange:', code.substring(0, 8) + '...');
+        // Centralized safe close
+        safeCloseBrowser('already-processed');
+
+        // forced retry attempts
+        setTimeout(() => safeCloseBrowser('already-processed (retry 500ms)'), 500);
+        // another delayed attempt in case device needs more time
+        setTimeout(() => safeCloseBrowser('already-processed (retry 1200ms)'), 1200);
         return;
       }
 
       // Verificar se já temos uma sessão ativa
       try {
+        await WebBrowser.warmUpAsync();
         const { data: existingSession } = await supabase.auth.getSession();
         if (existingSession?.session) {
           console.log('✅ Session already exists, marking code as handled');
           __handledAuthCodes.add(code);
+          // Centralized safe close for existing session path
+          safeCloseBrowser('deep-link existing-session');
+          setTimeout(() => safeCloseBrowser('deep-link existing-session (retry 500ms)'), 500);
+          setTimeout(() => safeCloseBrowser('deep-link existing-session (retry 1200ms)'), 1200);
           return;
         }
       } catch (sessErr) {
@@ -94,8 +124,12 @@ const handleDeepLink = async (event: { url: string }) => {
           console.error('❌ exchangeCodeForSession error:', error);
           // Se falhar, remover do set para permitir nova tentativa manual
           __handledAuthCodes.delete(code);
-        } else {
+          } else {
           console.log('✅ Session established via exchangeCodeForSession');
+          // Centralized safe close for exchange success path
+          safeCloseBrowser('deep-link exchange-success');
+          setTimeout(() => safeCloseBrowser('deep-link exchange-success (retry 500ms)'), 500);
+          setTimeout(() => safeCloseBrowser('deep-link exchange-success (retry 1200ms)'), 1200);
         }
       } catch (ex) {
         console.error('❌ exception during exchangeCodeForSession:', ex);
@@ -268,9 +302,10 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
 
-      // Criar deep link para retornar à app
-      const redirectUrl = Linking.createURL('auth');
-      console.log('📱 Redirect URL:', redirectUrl);
+  // Criar deep link para retornar à app (apenas deep-link, sem página web)
+  // Exemplo: futapp://auth
+  const redirectUrl = 'futapp://auth';
+  console.log('📱 Redirect URL (deep-link):', redirectUrl);
 
       // Iniciar fluxo OAuth
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -294,162 +329,12 @@ export default function AuthScreen() {
 
       console.log('🔗 URL OAuth gerada:', data?.url);
 
-      // Abrir browser in-app para autenticação
+      // Abrir browser externo para autenticação
       if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(
-          data.url,
-          redirectUrl,
-          {
-            showInRecents: true,
-          }
-        );
-
-        console.log('📊 Resultado do browser:', result);
-
-        if (result.type === 'success' && result.url) {
-          // Aguardar um momento para o deep-link handler processar primeiro
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          const url = result.url;
-          let params: any = {};
-
-          // Tentar extrair do hash (#)
-          if (url.includes('#')) {
-            const hashParams = url.split('#')[1];
-            params = Object.fromEntries(new URLSearchParams(hashParams));
-          }
-          // Fallback para query string (?)
-          else if (url.includes('?')) {
-            const queryParams = url.split('?')[1];
-            params = Object.fromEntries(new URLSearchParams(queryParams));
-          }
-
-          console.log('🔑 Parâmetros extraídos:', params);
-
-          const access_token = params.access_token;
-          const refresh_token = params.refresh_token;
-
-          // PKCE flow: provider returns a code which we must exchange for a session
-          if (params.code) {
-            try {
-              const exchangeCodeWithRetry = async (codeToExchange: string) => {
-                // CRÍTICO: Verificar se já processámos este código
-                if (__handledAuthCodes.has(codeToExchange)) {
-                  console.log('⏭️ Code already handled (browser), skipping:', codeToExchange.substring(0, 8) + '...');
-                  // Verificar se já temos sessão
-                  const { data: existingSession } = await supabase.auth.getSession();
-                  if (existingSession?.session) {
-                    console.log('✅ Session confirmed, proceeding with user setup');
-                    // Continuar com setup do utilizador
-                    const { data: getUserData } = await supabase.auth.getUser();
-                    const user = getUserData?.user;
-                    if (user) {
-                      const playerName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Jogador';
-                      await supabase.auth.updateUser({ data: { player_name: playerName } });
-                    }
-                    showToast('Login com Google realizado!', 'success');
-                  }
-                  return { data: null, error: null } as any;
-                }
-
-                // If we already have a session, skip exchange and mark handled
-                try {
-                  const { data: existingSession } = await supabase.auth.getSession();
-                  if (existingSession?.session) {
-                    console.log('✅ Session already exists (browser), marking code as handled');
-                    __handledAuthCodes.add(codeToExchange);
-                    return { data: null, error: null } as any;
-                  }
-                } catch (sessErr) {
-                  console.log('⚠️ Error checking session (browser):', sessErr);
-                }
-
-                // Marcar código como "em processamento" ANTES de fazer exchange
-                __handledAuthCodes.add(codeToExchange);
-
-                try {
-                  const { data, error } = await runWithExchangeLock(() => 
-                    supabase.auth.exchangeCodeForSession(codeToExchange)
-                  );
-                  
-                  if (error) {
-                    console.error('❌ exchangeCodeForSession error:', error);
-                    // Se falhar, remover do set para permitir nova tentativa
-                    __handledAuthCodes.delete(codeToExchange);
-                  } else {
-                    console.log('✅ Session established via exchangeCodeForSession (browser handler)');
-                  }
-                  
-                  return { data, error };
-                } catch (ex) {
-                  console.error('❌ Exception during exchangeCodeForSession:', ex);
-                  // Se falhar, remover do set
-                  __handledAuthCodes.delete(codeToExchange);
-                  throw ex;
-                }
-              };
-
-              const result = await exchangeCodeWithRetry(params.code as string);
-              if (result?.error) {
-                console.error('❌ Erro ao trocar code por sessão (final):', result.error);
-                showToast('Erro ao processar login (exchange)', 'error');
-              } else if (result?.data?.session) {
-                console.log('✅ Sessão obtida via exchangeCodeForSession (browser)');
-                const { data: getUserData } = await supabase.auth.getUser();
-                const user = getUserData?.user;
-                if (user) {
-                  const playerName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Jogador';
-                  await supabase.auth.updateUser({ data: { player_name: playerName } });
-                }
-                showToast('Login com Google realizado!', 'success');
-              }
-            } catch (ex) {
-              console.error('❌ Exceção durante exchangeCodeForSession:', ex);
-              showToast('Erro ao processar login', 'error');
-            }
-          }
-
-          // Fallback: implicit/fragment flow where access_token is present
-          else if (access_token) {
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token,
-              refresh_token,
-            });
-
-            if (sessionError) {
-              console.error('❌ Erro ao definir sessão:', sessionError);
-              throw sessionError;
-            }
-
-            console.log('✅ Sessão definida com sucesso');
-
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            if (user) {
-              const playerName = user.user_metadata?.full_name || 
-                               user.user_metadata?.name || 
-                               user.email?.split('@')[0] || 
-                               'Jogador';
-              
-              console.log('👤 Nome do jogador extraído:', playerName);
-              
-              await supabase.auth.updateUser({
-                data: { player_name: playerName }
-              });
-            }
-            
-            showToast('Login com Google realizado!', 'success');
-          } else {
-            console.error('❌ Nenhum token ou code encontrado na URL de retorno');
-            showToast('Erro ao processar login', 'error');
-          }
-        } else if (result.type === 'cancel') {
-          console.log('ℹ️ Usuário cancelou o login');
-          showToast('Login cancelado', 'info');
-        } else {
-          console.log('⚠️ Tipo de resultado desconhecido:', result.type);
-          showToast('Erro no processo de login', 'error');
-        }
+        // Abrir no navegador externo
+        await WebBrowser.openBrowserAsync(data.url);
+        // O retorno será tratado pelo deep-link listener (handleDeepLink)
+        // O restante do fluxo permanece igual, pois o deep-link já está implementado
       }
     } catch (error: any) {
       console.error('💥 Erro crítico no login Google:', error);

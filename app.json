@@ -1,15 +1,15 @@
 {
   "expo": {
     "name": "Your FUTAPP",
-    "slug": "fut",
+    "slug": "footbeer",
     "version": "1.0.0",
     "scheme": "futapp",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icone_app.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/boot.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#1a1a1a"
     },
@@ -32,7 +32,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/icone_app.png",
         "backgroundColor": "#1a1a1a"
       },
       "package": "com.bmoreiraribeiro.fut",
@@ -65,10 +65,10 @@
         "origin": false
       },
       "eas": {
-        "projectId": "7d615b97-7861-42e6-8f48-f11c08b2acb0"
+        "projectId": "a757d24b-ca1a-4201-be96-1510522a05ba"
       }
     },
-    "owner": "bmoreiraribeiro",
+    "owner": "brrrocket",
     "plugins": [
       "expo-router",
       "expo-web-browser"

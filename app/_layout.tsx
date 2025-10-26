@@ -274,6 +274,14 @@ function RootLayoutNav() {
     validateAuth();
   }, [isAuthenticated, session, hasInternet, isInitializing]);
 
+  // Se detectarmos estado inconsistente (autenticado mas sem cluster e sem modal),
+  // iniciamos a re-validação em um efeito (evita chamar setState no render).
+  useEffect(() => {
+    if (isAuthenticated && !hasCluster && !showClusterModal) {
+      setIsValidating(true);
+    }
+  }, [isAuthenticated, hasCluster, showClusterModal]);
+
   const handleClusterCreated = async () => {
     // Cluster created/associated, updating state - logs removed for production
     setShowClusterModal(false);
@@ -322,8 +330,7 @@ function RootLayoutNav() {
   // VERIFICAÇÃO ADICIONAL: Se não tem cluster válido, NÃO renderizar as tabs
   if (isAuthenticated && !hasCluster && !showClusterModal) {
     // Inconsistent state detected - logs removed for production
-    // Força re-validação
-    setIsValidating(true);
+    // Força re-validação (não chamar setState diretamente no render para evitar loop)
     return <CustomSplashScreen message="Re-validando..." />;
   }
 
