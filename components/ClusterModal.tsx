@@ -652,8 +652,8 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
               Nome Duplicado
             </Text>
             
-            <Text style={[styles.nameChangeDescription, { color: theme.text }]}>
-              Já existe um jogador com o nome "{currentPlayerName}" neste clube.
+            <Text style={[styles.nameChangeDescription, { color: theme.text }]}> 
+              Já existe um jogador com o nome &quot;{currentPlayerName}&quot; neste clube.
             </Text>
 
             <Text style={[styles.nameChangeQuestion, { color: theme.text }]}>
@@ -667,7 +667,7 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
               disabled={loading}
             >
               <Text style={styles.nameChangeButtonText}>
-                Continuar com o nome "{currentPlayerName}"
+                Continuar com o nome &quot;{currentPlayerName}&quot;
               </Text>
               <Text style={[styles.nameChangeButtonSubtext, { opacity: 0.8 }]}>
                 (Haverá dois jogadores com o mesmo nome)

@@ -1072,8 +1072,8 @@ export default function SettingsScreen() {
             </View>
             
             <ScrollView style={styles.confirmationBody}>
-              <Text style={[styles.confirmationText, { color: theme.text }]}>
-                Tem a certeza que deseja sair do cluster "{clusterDisplayName || clusterName}"?
+              <Text style={[styles.confirmationText, { color: theme.text }]}> 
+                Tem a certeza que deseja sair do cluster &quot;{clusterDisplayName || clusterName}&quot;?
               </Text>
               
               <Text style={[styles.confirmationWarning, { color: theme.text }]}>
@@ -1126,8 +1126,8 @@ export default function SettingsScreen() {
             </View>
             
             <ScrollView style={styles.confirmationBody}>
-              <Text style={[styles.confirmationText, { color: theme.text }]}>
-                Tem a certeza que deseja ELIMINAR PERMANENTEMENTE o cluster "{clusterDisplayName || clusterName}"?
+              <Text style={[styles.confirmationText, { color: theme.text }]}> 
+                Tem a certeza que deseja ELIMINAR PERMANENTEMENTE o cluster &quot;{clusterDisplayName || clusterName}&quot;?
               </Text>
               
               <Text style={[styles.confirmationWarning, { color: '#e74c3c' }]}>
