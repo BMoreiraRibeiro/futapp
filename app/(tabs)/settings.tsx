@@ -78,8 +78,8 @@ export default function SettingsScreen() {
   const { t, language, setLanguage } = useLanguage();
 
   // Toggle to show/hide the "Apagar Conta" button while we finish server-side flow.
-  // Set to true to re-enable the button later.
-  const SHOW_DELETE_ACCOUNT_BUTTON = false;
+  // Set to true to re-enable the button for testing.
+  const SHOW_DELETE_ACCOUNT_BUTTON = true;
 
   // Carregar configurações do cluster quando disponíveis (apenas na primeira vez)
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -502,49 +502,16 @@ export default function SettingsScreen() {
         console.warn('Server delete endpoint failed, falling back to client-side deletion', serverErr);
       }
 
-      // Fallback: client-side deletion (existing behavior)
-      // 1) Buscar jogadores associados a este user_id (pode haver 0 ou mais)
-      const { data: playersData, error: playersError } = await supabase
-        .from('jogadores')
-        .select('id_jogador')
-        .eq('user_id', session.user.id);
-
-      if (playersError) throw playersError;
-
-      const playerIds = (playersData || []).map((p: any) => p.id_jogador).filter(Boolean);
-
-      // 2) Apagar registos relacionados explicitamente (pagamentos mensais, calotes)
-      if (playerIds.length > 0) {
-        const { error: pagamentosErr } = await supabase
-          .from('pagamentos_jogador_por_mes')
-          .delete()
-          .in('player_id', playerIds);
-        if (pagamentosErr) console.warn('Erro ao remover pagamentos mensais:', pagamentosErr);
-
-        const { error: calotesErr } = await supabase
-          .from('calotes_jogo')
-          .delete()
-          .in('id_jogador', playerIds);
-        if (calotesErr) console.warn('Erro ao remover calotes_jogo:', calotesErr);
-      }
-
-      // 3) Apagar jogadores associados ao user_id
-      const { error: delPlayersErr } = await supabase
-        .from('jogadores')
-        .delete()
-        .eq('user_id', session.user.id);
-      if (delPlayersErr) console.warn('Erro ao eliminar jogadores do user:', delPlayersErr);
-
-      // 4) Remover de cluster_members todas as entradas deste user
+      // Fallback: only remove cluster_members locally (keep historical data)
       const { error: memberErr } = await supabase
         .from('cluster_members')
         .delete()
         .eq('user_id', session.user.id);
       if (memberErr) console.warn('Erro ao remover cluster_members:', memberErr);
 
-      showToast('Dados locais eliminados. A sessão será encerrada.', 'success');
+      showToast('Conta desvinculada do clube. A sessão será encerrada.', 'success');
 
-      // Limpar estados locais relacionados ao cluster e forçar logout
+      // Limpar estados locais relacionados ao clube/cluster e forçar logout
       clearClusterState();
       await updateClusterState();
 
@@ -1085,7 +1052,7 @@ export default function SettingsScreen() {
                 <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Configurações'}</Text>
                 <Text style={[styles.helpText, { color: theme.text }]}>{'- Perfil: altere seu nome e compartilhe o ID do clube.'}</Text>
                 <Text style={[styles.helpText, { color: theme.text }]}>{'- Personalizar Sorteio: ajuste nomes/cores das equipas e variação de rating (apenas admins).'}</Text>
-                <Text style={[styles.helpText, { color: theme.text }]}>{'- Administração: sair do cluster ou eliminar o cluster (esta última apaga TODOS os dados).'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Administração: sair do clube ou eliminar o clube (esta última apaga TODOS os dados).'}</Text>
               </View>
 
               <View style={{ marginTop: 8 }}>
@@ -1260,40 +1227,40 @@ export default function SettingsScreen() {
 
               {/* Renomear Cluster moved to Profile modal per UX change */}
 
-              {/* Sair do Cluster - Disponível para TODOS */}
+              {/* Sair do Clube - Disponível para TODOS */}
               <View style={[styles.adminSection, { borderColor: theme.border }]}>
                 <View style={styles.adminSectionHeader}>
                   <AlertCircle size={20} color="#f39c12" />
-                  <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Sair do Cluster</Text>
+                  <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Sair do Clube</Text>
                 </View>
                 <Text style={[styles.adminWarning, { color: theme.text }]}>
-                  Ao sair do cluster, você será removido da lista de membros. Os dados do cluster serão mantidos.
+                  Ao sair do clube, você será removido da lista de membros. Os dados do clube serão mantidos.
                 </Text>
                 <TouchableOpacity
                   style={[styles.adminWarningButton, { backgroundColor: '#f39c12' }]}
                   onPress={handleLeaveCluster}
                 >
                   <AlertCircle size={18} color="#fff" />
-                  <Text style={styles.adminDangerButtonText}>Sair do Cluster</Text>
+                  <Text style={styles.adminDangerButtonText}>Sair do Clube</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Eliminar Cluster - APENAS ADMIN */}
+              {/* Eliminar Clube - APENAS ADMIN */}
               {isAdmin && (
                 <View style={[styles.adminSection, { borderColor: theme.border }]}>
                   <View style={styles.adminSectionHeader}>
                     <Trash2 size={20} color="#e74c3c" />
-                    <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Eliminar Cluster</Text>
+                    <Text style={[styles.adminSectionTitle, { color: theme.text }]}>Eliminar Clube</Text>
                   </View>
                   <Text style={[styles.adminWarning, { color: '#e74c3c' }]}>
-                    ⚠️ ATENÇÃO: Esta ação é PERMANENTE e irá eliminar TODOS os dados do cluster (jogadores, jogos, finanças, etc.) e TODOS os membros serão removidos.
+                    ⚠️ ATENÇÃO: Esta ação é PERMANENTE e irá eliminar TODOS os dados do clube (jogadores, jogos, finanças, etc.) e TODOS os membros serão removidos.
                   </Text>
                   <TouchableOpacity
                     style={[styles.adminDangerButton, { backgroundColor: '#e74c3c' }]}
                     onPress={handleDeleteCluster}
                   >
                     <Trash2 size={18} color="#fff" />
-                    <Text style={styles.adminDangerButtonText}>Eliminar Cluster Permanentemente</Text>
+                    <Text style={styles.adminDangerButtonText}>Eliminar Clube Permanentemente</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1302,7 +1269,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Confirmação de SAIR do Cluster */}
+  {/* Modal de Confirmação de SAIR do Clube */}
       <Modal
         visible={showLeaveConfirmation}
         transparent={true}
@@ -1313,11 +1280,11 @@ export default function SettingsScreen() {
           <View style={[styles.confirmationModal, { backgroundColor: theme.background }]}>
             <View style={styles.confirmationHeader}>
               <AlertCircle size={48} color="#f39c12" />
-              <Text style={[styles.confirmationTitle, { color: theme.text }]}>Sair do Cluster</Text>
+              <Text style={[styles.confirmationTitle, { color: theme.text }]}>Sair do Clube</Text>
             </View>
             
             <ScrollView style={styles.confirmationBody}>
-              <Text style={[styles.confirmationText, { color: theme.text }]}>Tem a certeza que deseja sair do cluster "{clusterDisplayName || clusterName}"?</Text>
+              <Text style={[styles.confirmationText, { color: theme.text }]}>Tem a certeza que deseja sair do clube "{clusterDisplayName || clusterName}"?</Text>
               <Text style={[styles.confirmationWarning, { color: theme.text }]}>Esta ação irá:</Text>
               <View style={styles.confirmationList}>
                 <Text style={[styles.confirmationListItem, { color: theme.text }]}>• Remover você da lista de membros</Text>
@@ -1345,7 +1312,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Confirmação de ELIMINAR Cluster */}
+  {/* Modal de Confirmação de ELIMINAR Clube */}
       <Modal
         visible={showDeleteConfirmation}
         transparent={true}
@@ -1357,13 +1324,13 @@ export default function SettingsScreen() {
             <View style={styles.confirmationHeader}>
               <AlertCircle size={48} color="#e74c3c" />
               <Text style={[styles.confirmationTitle, { color: theme.text }]}>
-                Eliminar Cluster Permanentemente
+                Eliminar Clube Permanentemente
               </Text>
             </View>
             
             <ScrollView style={styles.confirmationBody}>
               <Text style={[styles.confirmationText, { color: theme.text }]}> 
-                Tem a certeza que deseja ELIMINAR PERMANENTEMENTE o cluster &quot;{clusterDisplayName || clusterName}&quot;?
+                Tem a certeza que deseja ELIMINAR PERMANENTEMENTE o clube &quot;{clusterDisplayName || clusterName}&quot;?
               </Text>
               
               <Text style={[styles.confirmationWarning, { color: '#e74c3c' }]}>
@@ -1375,7 +1342,7 @@ export default function SettingsScreen() {
                 <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar TODOS os jogos</Text>
                 <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar TODAS as finanças</Text>
                 <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Remover TODOS os membros</Text>
-                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar o cluster completamente</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar o clube completamente</Text>
               </View>
               
               <Text style={[styles.confirmationFinalWarning, { color: '#e74c3c' }]}>
