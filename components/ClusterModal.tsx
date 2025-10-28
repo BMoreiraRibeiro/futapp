@@ -465,9 +465,9 @@ export function ClusterModal({ visible, userId, onComplete, initialMode = 'creat
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
           keyboardShouldPersistTaps="handled"
-          style={[styles.overlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', flex: 1 }}
         >
           <View style={[styles.container, { backgroundColor: theme.background }]}>
           <Text style={[styles.title, { color: theme.text }]}>

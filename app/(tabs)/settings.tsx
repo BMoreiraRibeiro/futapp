@@ -47,6 +47,8 @@ export default function SettingsScreen() {
   const [clusterRenameLoading, setClusterRenameLoading] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
+  const [showDeleteAccountConfirmation, setShowDeleteAccountConfirmation] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   
   // Estados para o perfil do jogador
   const [playerName, setPlayerName] = useState('');
@@ -74,6 +76,10 @@ export default function SettingsScreen() {
   });
 
   const { t, language, setLanguage } = useLanguage();
+
+  // Toggle to show/hide the "Apagar Conta" button while we finish server-side flow.
+  // Set to true to re-enable the button later.
+  const SHOW_DELETE_ACCOUNT_BUTTON = false;
 
   // Carregar configurações do cluster quando disponíveis (apenas na primeira vez)
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -455,6 +461,106 @@ export default function SettingsScreen() {
     }
   };
 
+  const confirmDeleteAccount = async () => {
+    try {
+      if (!session?.user?.id) {
+        showToast('Erro: sessão não disponível', 'error');
+        return;
+      }
+
+      setDeletingAccount(true);
+
+      // First attempt: call server endpoint that runs admin.deleteUser using service_role
+      // This endpoint should be deployed (Netlify functions) and have SUPABASE_SERVICE_ROLE_KEY set
+      try {
+        const accessToken = (session as any)?.access_token || (await supabase.auth.getSession()).data?.session?.access_token;
+        if (accessToken) {
+          const resp = await fetch('/.netlify/functions/delete-account', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (resp.ok) {
+            showToast('Conta eliminada com sucesso. A sessão será encerrada.', 'success');
+            clearClusterState();
+            await updateClusterState();
+            await new Promise((r) => setTimeout(r, 400));
+            await signOut();
+            return;
+          } else {
+            const text = await resp.text();
+            console.warn('Server delete endpoint returned error:', resp.status, text);
+            // fall through to client-side fallback
+          }
+        } else {
+          console.warn('No access token available to call server delete endpoint. Falling back to client-side cleanup.');
+        }
+      } catch (serverErr) {
+        console.warn('Server delete endpoint failed, falling back to client-side deletion', serverErr);
+      }
+
+      // Fallback: client-side deletion (existing behavior)
+      // 1) Buscar jogadores associados a este user_id (pode haver 0 ou mais)
+      const { data: playersData, error: playersError } = await supabase
+        .from('jogadores')
+        .select('id_jogador')
+        .eq('user_id', session.user.id);
+
+      if (playersError) throw playersError;
+
+      const playerIds = (playersData || []).map((p: any) => p.id_jogador).filter(Boolean);
+
+      // 2) Apagar registos relacionados explicitamente (pagamentos mensais, calotes)
+      if (playerIds.length > 0) {
+        const { error: pagamentosErr } = await supabase
+          .from('pagamentos_jogador_por_mes')
+          .delete()
+          .in('player_id', playerIds);
+        if (pagamentosErr) console.warn('Erro ao remover pagamentos mensais:', pagamentosErr);
+
+        const { error: calotesErr } = await supabase
+          .from('calotes_jogo')
+          .delete()
+          .in('id_jogador', playerIds);
+        if (calotesErr) console.warn('Erro ao remover calotes_jogo:', calotesErr);
+      }
+
+      // 3) Apagar jogadores associados ao user_id
+      const { error: delPlayersErr } = await supabase
+        .from('jogadores')
+        .delete()
+        .eq('user_id', session.user.id);
+      if (delPlayersErr) console.warn('Erro ao eliminar jogadores do user:', delPlayersErr);
+
+      // 4) Remover de cluster_members todas as entradas deste user
+      const { error: memberErr } = await supabase
+        .from('cluster_members')
+        .delete()
+        .eq('user_id', session.user.id);
+      if (memberErr) console.warn('Erro ao remover cluster_members:', memberErr);
+
+      showToast('Dados locais eliminados. A sessão será encerrada.', 'success');
+
+      // Limpar estados locais relacionados ao cluster e forçar logout
+      clearClusterState();
+      await updateClusterState();
+
+      // Pequena espera para garantir limpeza
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      await signOut();
+    } catch (error: any) {
+      console.error('Erro ao apagar conta:', error);
+      showToast(error?.message || 'Erro ao apagar conta', 'error');
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteAccountConfirmation(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Image 
@@ -540,6 +646,15 @@ export default function SettingsScreen() {
             {isLoggingOut ? t('common.loggingOut') : t('common.logout')}
           </Text>
         </TouchableOpacity>
+
+        {SHOW_DELETE_ACCOUNT_BUTTON && (
+          <TouchableOpacity
+            style={[styles.deleteAccountButton, { backgroundColor: theme.error }]}
+            onPress={() => setShowDeleteAccountConfirmation(true)}
+          >
+            <Text style={[styles.logoutText, { color: '#ffffff' }]}>Apagar Conta</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Global toast: only show when profile modal is NOT open to avoid duplicate toasts */}
         {!showProfileModal && toastConfig.visible && (
@@ -811,6 +926,53 @@ export default function SettingsScreen() {
           )}
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de Confirmação de APAGAR CONTA */}
+      <Modal
+        visible={showDeleteAccountConfirmation}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteAccountConfirmation(false)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <View style={[styles.confirmationModal, { backgroundColor: theme.background }]}>
+            <View style={styles.confirmationHeader}>
+              <AlertCircle size={48} color="#e74c3c" />
+              <Text style={[styles.confirmationTitle, { color: theme.text }]}>Apagar Conta</Text>
+            </View>
+
+            <ScrollView style={styles.confirmationBody}>
+              <Text style={[styles.confirmationText, { color: theme.text }]}>Tem certeza de que deseja apagar a sua conta? Esta ação irá remover seus dados do clube e encerrar a sua sessão.</Text>
+
+              <Text style={[styles.confirmationWarning, { color: '#e74c3c' }]}>⚠️ Atenção: A remoção inclui, quando aplicável:</Text>
+              <View style={styles.confirmationList}>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Remover seus jogadores</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Remover associações a clubes (membros)</Text>
+                <Text style={[styles.confirmationListItem, { color: '#e74c3c' }]}>• Eliminar pagamentos/finanças relacionados</Text>
+              </View>
+
+              <Text style={[styles.confirmationFinalWarning, { color: theme.text }]}>ℹ️ Nota: A exclusão da conta de autenticação (Auth) não é possível diretamente a partir do app cliente. Se pretende eliminar completamente o usuário do Auth, contacte o suporte ou utilize um endpoint de servidor que execute a ação com a chave de serviço.</Text>
+            </ScrollView>
+
+            <View style={styles.confirmationButtons}>
+              <TouchableOpacity
+                style={[styles.confirmationCancelButton, { borderColor: theme.border }]}
+                onPress={() => setShowDeleteAccountConfirmation(false)}
+              >
+                <Text style={[styles.confirmationCancelText, { color: theme.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmationDeleteButton, { backgroundColor: '#e74c3c' }]}
+                onPress={confirmDeleteAccount}
+                disabled={deletingAccount}
+              >
+                <Text style={styles.confirmationDeleteText}>{deletingAccount ? 'A apagar...' : 'Apagar Conta'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal: Idioma */}
@@ -1453,6 +1615,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 16,
+  },
+  deleteAccountButton: {
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 24,
   },
   disabledButton: {
     opacity: 0.7,

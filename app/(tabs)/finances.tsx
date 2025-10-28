@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
+import { MonthlyPaymentsModal } from '../../components/MonthlyPaymentsModal';
 
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
@@ -29,6 +31,12 @@ export default function FinancesScreen() {
   const [selectedGame, setSelectedGame] = useState<GameWithCalotes | null>(null);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [gameToDelete, setGameToDelete] = useState<GameWithCalotes | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'por_jogo' | 'mensal'>('por_jogo');
+  const [mensalPlayers, setMensalPlayers] = useState<{ id_jogador: string; nome: string }[]>([]);
+  const [mensalYear, setMensalYear] = useState<string>(new Date().getFullYear().toString());
+  const [availableMensalYears, setAvailableMensalYears] = useState<string[]>([]);
+  const [monthlyModalVisible, setMonthlyModalVisible] = useState(false);
+  const [selectedPlayerForMonthly, setSelectedPlayerForMonthly] = useState<{ id: string; nome: string } | null>(null);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
     message: string;
@@ -42,8 +50,55 @@ export default function FinancesScreen() {
   useEffect(() => {
     if (clusterName) {
       loadGames();
+      loadMensalPlayers();
+      loadAvailableMensalYears();
     }
   }, [clusterName]);
+
+  const loadMensalPlayers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('jogadores')
+        .select('id_jogador, nome')
+        .eq('cluster_uuid', clusterName)
+        .order('nome');
+
+      if (error) throw error;
+
+      setMensalPlayers(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar jogadores para mensal:', error);
+    }
+  };
+
+  const loadAvailableMensalYears = async () => {
+    try {
+      if (!clusterName) return;
+      // Get distinct years from pagamentos_jogador_por_mes
+      const { data, error } = await supabase
+        .from('pagamentos_jogador_por_mes')
+        .select('months');
+
+      if (error) throw error;
+
+      const years = (data || [])
+        .map((r: any) => {
+          const parts = (r.months || '').split('-');
+          return parts.length === 2 ? parts[1] : null;
+        })
+        .filter((y: string | null): y is string => !!y)
+        .filter((y: string, i: number, arr: string[]) => arr.indexOf(y) === i)
+        .sort((a, b) => parseInt(b) - parseInt(a));
+
+      // Ensure current year present
+      const currentYear = new Date().getFullYear().toString();
+      if (!years.includes(currentYear)) years.unshift(currentYear);
+      setAvailableMensalYears(years);
+      if (!mensalYear && years.length > 0) setMensalYear(years[0]);
+    } catch (error) {
+      console.error('Erro ao carregar anos mensais:', error);
+    }
+  };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToastConfig({
@@ -223,21 +278,81 @@ export default function FinancesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <FlatList
-        data={games}
-        renderItem={renderGame}
-        keyExtractor={(item) => item.id_jogo}
-        contentContainerStyle={styles.listContainer}
-        refreshing={loading}
-        onRefresh={loadGames}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: theme.text }]}>
-              Nenhum jogo registrado
-            </Text>
+      {/* Tabs */}
+      <View style={[styles.tabBar, { backgroundColor: theme.cardBackground }]}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'por_jogo' ? { backgroundColor: theme.primary } : { borderColor: theme.border }
+          ]}
+          onPress={() => setSelectedTab('por_jogo')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'por_jogo' ? { color: '#fff' } : { color: theme.text }]}>Por Jogo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            selectedTab === 'mensal' ? { backgroundColor: theme.primary } : { borderColor: theme.border }
+          ]}
+          onPress={() => setSelectedTab('mensal')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'mensal' ? { color: '#fff' } : { color: theme.text }]}>Mensal</Text>
+        </TouchableOpacity>
+      </View>
+
+      {selectedTab === 'por_jogo' ? (
+        <FlatList
+          data={games}
+          renderItem={renderGame}
+          keyExtractor={(item) => item.id_jogo}
+          contentContainerStyle={styles.listContainer}
+          refreshing={loading}
+          onRefresh={loadGames}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogo registrado</Text>
+            </View>
+          }
+        />
+      ) : (
+        <View style={[styles.mensalContainer, { backgroundColor: theme.background }]}> 
+          <View style={[styles.pickerContainer, { backgroundColor: isDarkMode ? '#1a3a52' : '#e3f2fd', borderColor: isDarkMode ? '#2d5f8d' : '#90caf9' }]}>
+            <Picker selectedValue={mensalYear} onValueChange={(v) => setMensalYear(v)} style={[styles.picker, { color: theme.text }]}> 
+              {availableMensalYears.map(y => (
+                <Picker.Item key={y} label={y} value={y} />
+              ))}
+            </Picker>
           </View>
-        }
-      />
+
+          <FlatList
+            data={mensalPlayers}
+            keyExtractor={p => p.id_jogador}
+            contentContainerStyle={styles.listContainer}
+            renderItem={({ item }) => (
+              <View style={[styles.playerCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}> 
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={[styles.playerName, { color: theme.text }]}>{item.nome}</Text>
+                  <TouchableOpacity style={[styles.manageButton, { backgroundColor: theme.primary }]} onPress={() => { setSelectedPlayerForMonthly({ id: item.id_jogador, nome: item.nome }); setMonthlyModalVisible(true); }}>
+                    <Text style={styles.manageButtonText}>Pagamentos</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={<View style={styles.emptyContainer}><Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogador</Text></View>}
+          />
+
+          {selectedPlayerForMonthly && (
+            <MonthlyPaymentsModal
+              visible={monthlyModalVisible}
+              onClose={() => { setMonthlyModalVisible(false); setSelectedPlayerForMonthly(null); loadAvailableMensalYears(); }}
+              playerId={selectedPlayerForMonthly.id}
+              playerName={selectedPlayerForMonthly.nome}
+              year={mensalYear}
+              isAdmin={isAdmin}
+            />
+          )}
+        </View>
+      )}
 
       {selectedGame && clusterName && (
         <PaymentsModal
@@ -408,5 +523,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: 'white',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    padding: 8,
+    marginHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  mensalPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  mensalText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 8,
+  },
+  mensalHint: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    opacity: 0.8,
+    textAlign: 'center',
+  },
+  mensalContainer: {
+    flex: 1,
+  },
+  pickerContainer: {
+    marginHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    overflow: 'hidden'
+  },
+  picker: {
+    height: 56,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  playerCard: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  playerName: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold'
   },
 });

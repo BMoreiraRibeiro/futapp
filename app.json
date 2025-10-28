@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Your FUTAPP",
-    "slug": "footbeer",
-    "version": "1.0.0",
+  "name": "Your FUTAPP",
+  "slug": "footbeer",
+  "version": "1.0.1",
     "scheme": "futapp",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -11,13 +11,14 @@
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#00000000"
+      "backgroundColor": "#1a1a1a"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
+      "buildNumber": "1.0.1",
       "bundleIdentifier": "com.bmoreiraribeiro.fut",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -33,9 +34,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icone_app.png",
-        "backgroundColor": "#00000000"
+        "backgroundColor": "#1a1a1a"
       },
       "package": "com.bmoreiraribeiro.fut",
+      "versionCode": 2,
       "newArchEnabled": false,
       "intentFilters": [
         {
