@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share, KeyboardAvoidingView, Platform } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
@@ -559,15 +559,16 @@ export default function SettingsScreen() {
           setTempPlayerName(playerName);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
               <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
               <TouchableOpacity onPress={() => { hideToast(); setIsRenamingCluster(false); setNewClusterName(''); setIsEditingPlayerName(false); setTempPlayerName(playerName); setShowProfileModal(false); }}>
                 <X size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
               {/* Informações do Clube */}
               <View style={[styles.profileSection, { borderBottomColor: theme.border }]}> 
                 <Text style={[styles.profileLabel, { color: theme.text }]}>Clube</Text>
@@ -660,7 +661,7 @@ export default function SettingsScreen() {
                               } else {
                                 showToast('Não foi possível copiar automaticamente. Copie manualmente.', 'info');
                               }
-                            } catch (e) {
+                            } catch {
                               showToast('Erro ao copiar o ID', 'error');
                             }
                           }}
@@ -681,7 +682,7 @@ export default function SettingsScreen() {
                               return;
                             }
                             await Share.share({ message, title: 'ID do Clube' });
-                          } catch (e) {
+                          } catch {
                             Alert.alert('Erro', 'Não foi possível partilhar o ID');
                           }
                         }}
@@ -794,7 +795,8 @@ export default function SettingsScreen() {
               onHide={hideToast}
             />
           )}
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal: Idioma */}
@@ -861,8 +863,9 @@ export default function SettingsScreen() {
         transparent={true}
         onRequestClose={() => setShowDrawModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>⚽ Personalizar Sorteio</Text>
               <TouchableOpacity onPress={() => setShowDrawModal(false)}>
@@ -972,8 +975,9 @@ export default function SettingsScreen() {
                 <Text style={styles.saveButtonText}>{t('common.saveSettings')}</Text>
               </TouchableOpacity>
             </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Modal: Administração */}
