@@ -415,13 +415,7 @@ export default function IndexScreen() {
                 <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}
                 >
                   <View style={styles.modalHeader}>
-                    <TouchableOpacity onPress={() => setTeams([])} style={{ paddingRight: 8 }}>
-                      <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>{'◀ Voltar'}</Text>
-                    </TouchableOpacity>
                     <Text style={[styles.modalTitle, { color: theme.text }]}>{t('index.teams')}</Text>
-                    <TouchableOpacity onPress={() => setTeams([])}>
-                      <X size={24} color={theme.text} />
-                    </TouchableOpacity>
                   </View>
                   <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 20 }}>
                     <View style={styles.teamsContainer}>
@@ -444,6 +438,23 @@ export default function IndexScreen() {
                         {saving ? 'Gravando...' : 'Gravar Equipas'}
                       </Text>
                     </TouchableOpacity>
+
+                    {/* Footer actions: Voltar e Sortear novamente (reroll) */}
+                    <View style={styles.modalFooter}>
+                      <TouchableOpacity
+                        style={[styles.modalFooterButton, { backgroundColor: theme.secondary, borderColor: theme.secondary }]}
+                        onPress={() => setTeams([])}
+                      >
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.modalFooterButtonText, { color: '#a42525ff' }]}>Voltar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.modalFooterButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
+                        onPress={() => drawTeams()}
+                      >
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.modalFooterButtonText, { color: '#ffffff' }]}>Sortear novamente</Text>
+                      </TouchableOpacity>
+                    </View>
                   </ScrollView>
                 </View>
               </View>
@@ -686,5 +697,25 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+  modalFooterButton: {
+    flex: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    minWidth: 120,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  modalFooterButtonText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
   },
 });
