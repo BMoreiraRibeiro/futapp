@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
@@ -404,34 +404,51 @@ export default function IndexScreen() {
         </View>
 
         {teams.length > 0 && (
-          <View style={styles.teamsSection}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('index.teams')}</Text>
-            <View style={styles.teamsContainer}>
-              {teams.map((team, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.teamContainer
-                  ]}
+          <Modal
+            visible={true}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setTeams([])}
+          >
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+              <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.85)' }] }>
+                <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}
                 >
-                  {renderTeam({ item: team })}
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity onPress={() => setTeams([])} style={{ paddingRight: 8 }}>
+                      <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>{'◀ Voltar'}</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.modalTitle, { color: theme.text }]}>{t('index.teams')}</Text>
+                    <TouchableOpacity onPress={() => setTeams([])}>
+                      <X size={24} color={theme.text} />
+                    </TouchableOpacity>
+                  </View>
+                  <ScrollView style={styles.modalBody} contentContainerStyle={{ paddingBottom: 20 }}>
+                    <View style={styles.teamsContainer}>
+                      {teams.map((team, index) => (
+                        <View key={index} style={styles.teamContainer}>
+                          {renderTeam({ item: team })}
+                        </View>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.saveButton,
+                        { backgroundColor: theme.primary },
+                        saving && styles.disabledButton
+                      ]}
+                      onPress={saveTeamsToDatabase}
+                      disabled={saving}
+                    >
+                      <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>
+                        {saving ? 'Gravando...' : 'Gravar Equipas'}
+                      </Text>
+                    </TouchableOpacity>
+                  </ScrollView>
                 </View>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                { backgroundColor: theme.primary },
-                saving && styles.disabledButton
-              ]}
-              onPress={saveTeamsToDatabase}
-              disabled={saving}
-            >
-              <Text style={[styles.saveButtonText, { color: '#ffffff' }]}>
-                {saving ? 'Gravando...' : 'Gravar Equipas'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         )}
 
         <TouchableOpacity
@@ -628,5 +645,46 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontFamily: 'Inter_700Bold',
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  centeredModalOverlayDark: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '40%',
+  },
+  centeredModalContent: {
+    borderRadius: 20,
+    width: '94%',
+    maxWidth: 720,
+    maxHeight: '80%',
+    minHeight: '40%',
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  modalBody: {
+    padding: 20,
   },
 });

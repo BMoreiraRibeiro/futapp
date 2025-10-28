@@ -560,8 +560,8 @@ export default function SettingsScreen() {
         }}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.centeredModalOverlay}>
-            <View style={[styles.modalContent, styles.centeredModalContent, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
               <View style={styles.modalHeader}>
                 <View style={{ width: 48 }} />
                 <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
@@ -865,8 +865,8 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowDrawModal(false)}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.centeredModalOverlayDark}>
-            <View style={[styles.modalContent, styles.centeredModalContent, { backgroundColor: theme.cardBackground }]}>
+          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.85)' }] }>
+            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
               <View style={styles.modalHeader}>
                 <TouchableOpacity onPress={() => setShowDrawModal(false)} style={{ paddingRight: 8 }}>
                   <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>{'◀ Voltar'}</Text>
