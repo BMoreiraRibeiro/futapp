@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
-import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle, Share as ShareIcon } from 'lucide-react-native';
-import { Check } from 'lucide-react-native';
+import { Moon, Sun, Save, Shield, User, Globe, Settings as SettingsIcon, Lock, ChevronRight, X, Edit2, Trash2, AlertCircle, Share as ShareIcon , Check } from 'lucide-react-native';
+
 
 import { Toast } from '../../components/Toast';
 import { useLanguage } from '../../lib/language';

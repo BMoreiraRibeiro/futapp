@@ -24,7 +24,7 @@
     "@supabase/supabase-js": "^2.49.1",
     "axios": "^1.6.7",
     "date-fns": "^4.1.0",
-    "expo": "54.0.19",
+    "expo": "^54.0.20",
     "expo-blur": "~15.0.7",
     "expo-clipboard": "~8.0.7",
     "expo-constants": "~18.0.10",
@@ -58,7 +58,14 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.1.10",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
     "babel-preset-expo": "^54.0.4",
+    "eslint": "^9.38.0",
+    "eslint-config-expo": "~10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "typescript": "~5.9.2"
   }
 }
