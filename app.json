@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1a1a"
+      "backgroundColor": "#00000000"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -33,7 +33,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icone_app.png",
-        "backgroundColor": "#1a1a1a"
+        "backgroundColor": "#00000000"
       },
       "package": "com.bmoreiraribeiro.fut",
       "newArchEnabled": false,

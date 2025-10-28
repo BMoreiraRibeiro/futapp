@@ -17,6 +17,8 @@ type GameResult = {
   id_jogo: string;
   data: string;
   vencedor: 'A' | 'B' | 'E' | null;
+  golos_a?: number | null;
+  golos_b?: number | null;
   jogadores_equipa_a: string[]; // Array de UUIDs convertido para nomes
   jogadores_equipa_b: string[]; // Array de UUIDs convertido para nomes
 };
@@ -44,6 +46,8 @@ export default function ResultsScreen() {
     type: 'info'
   });
   const { t } = useLanguage();
+
+  // scoreEdits removed: score entry moved to GoalsModal
 
   useEffect(() => {
     if (clusterName) {
@@ -165,12 +169,14 @@ export default function ResultsScreen() {
 
       if (error) throw error;
       showToast('Vencedor definido com sucesso', 'success');
-      fetchResults(clusterName);
+  fetchResults(clusterName);
     } catch (error) {
       console.error('Erro ao definir vencedor:', error);
       showToast('Erro ao definir vencedor', 'error');
     }
   };
+
+  // saveScore removed: match score is saved from GoalsModal
 
   const handleGoalsPress = (game: GameResult) => {
     setSelectedGame(game);
@@ -199,9 +205,13 @@ export default function ResultsScreen() {
         {item.vencedor ? (
           <View style={styles.finishedGame}>
             <View style={styles.gameHeader}>
-              <Text style={[styles.gameDate, { color: theme.text }]}>
-                {new Date(item.data).toLocaleDateString('pt-PT')}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.gameDate, { color: theme.text }]}>
+                  {new Date(item.data).toLocaleDateString('pt-PT')}
+                </Text>
+                <Text style={[styles.winnerLabel, { color: theme.text }]}> {item.vencedor === 'E' ? t('results.draw') : (item.vencedor === 'A' ? teamAName : teamBName)} </Text>
+                <Text style={[styles.matchResult, { color: theme.text }]}>({item.golos_a ?? 0}-{item.golos_b ?? 0})</Text>
+              </View>
               <View style={[styles.winnerButton, { backgroundColor: theme.secondary }]}>
                 <Trophy size={16} color="#FFD700" />
                 <Text style={[styles.winnerButtonText, { marginLeft: 6 }]}>
@@ -209,6 +219,7 @@ export default function ResultsScreen() {
                 </Text>
               </View>
             </View>
+            
             <View style={styles.teamSection}>
               <Text style={[styles.teamPlayers, { color: theme.text }]}>
                 {item.vencedor === 'E' ? (
@@ -271,6 +282,14 @@ export default function ResultsScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.gameHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[styles.gameDate, { color: theme.text }]}>
+                  {new Date(item.data).toLocaleDateString('pt-PT')}
+                </Text>
+                <Text style={[styles.matchResult, { color: theme.text }]}>({item.golos_a ?? 0}-{item.golos_b ?? 0})</Text>
+              </View>
+            </View>
             <View style={styles.teamsContainer}>
               <View style={styles.teamSection}>
                 <Text style={[styles.teamTitle, { color: theme.text }]}>{t('index.teamA')}</Text>
@@ -413,6 +432,7 @@ export default function ResultsScreen() {
               }}
               gameId={selectedGame.id_jogo}
               clusterId={clusterName}
+              onSaved={() => { if (clusterName) fetchResults(clusterName); }}
             />
             
             <ViewGoalsModal
@@ -585,4 +605,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
   },
+  matchResult: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    opacity: 0.9,
+  },
+  winnerLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    marginLeft: 4,
+    marginRight: 4,
+    color: '#ffffff',
+  },
+  
 });

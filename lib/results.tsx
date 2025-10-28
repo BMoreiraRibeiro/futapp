@@ -5,6 +5,8 @@ type GameResult = {
   id_jogo: string;
   data: string;
   vencedor: 'A' | 'B' | 'E' | null;
+  golos_a?: number | null;
+  golos_b?: number | null;
   jogadores_equipa_a: string[]; // Array de nomes dos jogadores
   jogadores_equipa_b: string[]; // Array de nomes dos jogadores
 };
@@ -38,7 +40,7 @@ export function ResultsProvider({ children }: { children: React.ReactNode }) {
       // Buscar resultados com arrays de UUIDs
       const { data: rawData, error } = await supabase
         .from('resultados_jogos')
-        .select('id_jogo, data, vencedor, jogadores_equipa_a, jogadores_equipa_b')
+        .select('id_jogo, data, vencedor, golos_a, golos_b, jogadores_equipa_a, jogadores_equipa_b')
         .eq('cluster_uuid', clusterId)
         .order('data', { ascending: false });
 

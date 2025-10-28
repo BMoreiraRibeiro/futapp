@@ -18,12 +18,15 @@ type GoalsModalProps = {
   onClose: () => void;
   gameId: string;
   clusterId: string;
+  onSaved?: () => void;
 };
 
-export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalProps) {
+export function GoalsModal({ visible, onClose, gameId, clusterId, onSaved }: GoalsModalProps) {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const [playerGoals, setPlayerGoals] = useState<PlayerGoals[]>([]);
+  const [matchScoreA, setMatchScoreA] = useState<string>('0');
+  const [matchScoreB, setMatchScoreB] = useState<string>('0');
   const [loading, setLoading] = useState(false);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
@@ -46,10 +49,10 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
   const loadPlayers = async () => {
     try {
       setLoading(true);
-      // Buscar o jogo para identificar os UUIDs dos jogadores das equipas
+      // Buscar o jogo para identificar os UUIDs dos jogadores das equipas e os golos
       const { data: gameData, error: gameError } = await supabase
         .from('resultados_jogos')
-        .select('jogadores_equipa_a, jogadores_equipa_b')
+        .select('jogadores_equipa_a, jogadores_equipa_b, golos_a, golos_b')
         .eq('id_jogo', gameId)
         .eq('cluster_uuid', clusterId)
         .single();
@@ -118,9 +121,36 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
       ];
 
       setPlayerGoals(playersList);
+      // Prefill match score inputs if available
+      setMatchScoreA(gameData.golos_a != null ? String(gameData.golos_a) : '0');
+      setMatchScoreB(gameData.golos_b != null ? String(gameData.golos_b) : '0');
     } catch (error) {
       console.error('Erro ao carregar jogadores:', error);
       showToast('Erro ao carregar jogadores', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveMatchScore = async () => {
+    const a = parseInt(matchScoreA || '0', 10) || 0;
+    const b = parseInt(matchScoreB || '0', 10) || 0;
+
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('resultados_jogos')
+        .update({ golos_a: a, golos_b: b })
+        .eq('id_jogo', gameId)
+        .eq('cluster_uuid', clusterId);
+
+      if (error) throw error;
+      showToast('Resultado guardado', 'success');
+      // Notify parent to refresh
+      onSaved && onSaved();
+    } catch (err) {
+      console.error('Erro ao guardar resultado:', err);
+      showToast('Erro ao guardar resultado', 'error');
     } finally {
       setLoading(false);
     }
@@ -211,6 +241,31 @@ export function GoalsModal({ visible, onClose, gameId, clusterId }: GoalsModalPr
             <Text style={[styles.modalTitle, { color: theme.text }]}>Registrar Golos</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Match score inputs at the top of the modal */}
+          <View style={styles.matchScoreRow}>
+            <Text style={[styles.matchScoreLabel, { color: theme.text }]}>{'Resultado'}</Text>
+            <TextInput
+              value={matchScoreA}
+              onChangeText={setMatchScoreA}
+              keyboardType="numeric"
+              style={[styles.matchScoreInput, { color: theme.text, borderColor: theme.border }]}
+            />
+            <Text style={[styles.scoreSeparator, { color: theme.text }]}>{'-'}</Text>
+            <TextInput
+              value={matchScoreB}
+              onChangeText={setMatchScoreB}
+              keyboardType="numeric"
+              style={[styles.matchScoreInput, { color: theme.text, borderColor: theme.border }]}
+            />
+            <TouchableOpacity
+              style={[styles.matchSaveButton, { backgroundColor: theme.primary }]}
+              onPress={saveMatchScore}
+              disabled={loading}
+            >
+              <Text style={styles.matchSaveButtonText}>Salvar</Text>
             </TouchableOpacity>
           </View>
 
@@ -354,15 +409,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   goalsInput: {
-    width: 50,
-    height: 44,
+    width: 52,
+    height: 48,
     borderWidth: 1,
     borderRadius: 4,
     paddingHorizontal: 8,
-    paddingVertical: 5,
-    fontSize: 16,
+    paddingVertical: 6,
+    fontSize: 15,
     textAlign: 'center',
     textAlignVertical: 'center',
+    lineHeight: 18,
     fontFamily: 'Inter_600SemiBold',
   },
   saveButton: {
@@ -386,5 +442,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_500Medium',
     marginTop: 20,
+  },
+  matchScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  matchScoreLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+    marginRight: 8,
+  },
+  matchScoreInput: {
+    width: 64,
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Inter_600SemiBold',
+    backgroundColor: 'transparent',
+  },
+  scoreSeparator: {
+    fontSize: 16,
+    fontFamily: 'Inter_700Bold',
+  },
+  matchSaveButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginLeft: 8,
+  },
+  matchSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

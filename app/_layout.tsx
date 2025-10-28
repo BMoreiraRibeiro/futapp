@@ -84,8 +84,8 @@ function CustomSplashScreen({ message }: { message?: string }) {
             opacity
           },
         ]}>
-        <Image 
-          source={require('../assets/images/icon.png')}
+        <Image
+          source={require('../assets/images/icone_app.png')}
           style={styles.splashIcon}
           resizeMode="contain"
         />
@@ -464,7 +464,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   splashContainer: {
     flex: 1,
-    backgroundColor: '#1a472a',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -472,8 +472,9 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   splashIcon: {
-    width: 120,
-    height: 120,
+    width: 180,
+    height: 180,
+    backgroundColor: 'transparent',
   },
   splashText: {
     color: '#ffffff',
