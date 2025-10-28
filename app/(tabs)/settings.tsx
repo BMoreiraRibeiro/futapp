@@ -38,6 +38,7 @@ export default function SettingsScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showDrawModal, setShowDrawModal] = useState(false);
   const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   
   // Estados para renomear cluster
   const [isRenamingCluster, setIsRenamingCluster] = useState(false);
@@ -500,6 +501,18 @@ export default function SettingsScreen() {
           <ChevronRight size={24} color={theme.text} />
         </TouchableOpacity>
 
+        {/* Botão: Ajuda */}
+        <TouchableOpacity
+          style={[styles.menuButton, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+          onPress={() => setShowHelpModal(true)}
+        >
+          <View style={styles.menuButtonContent}>
+            <AlertCircle size={24} color={theme.primary} />
+            <Text style={[styles.menuButtonText, { color: theme.text }]}>Ajuda</Text>
+          </View>
+          <ChevronRight size={24} color={theme.text} />
+        </TouchableOpacity>
+
         {/* Botão: Personalizar Sorteio - APENAS ADMIN */}
         {isAdmin && (
           <TouchableOpacity
@@ -857,6 +870,70 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
+      {/* Modal: Ajuda */}
+      <Modal
+        visible={showHelpModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowHelpModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>❓ Ajuda Rápida</Text>
+              <TouchableOpacity onPress={() => setShowHelpModal(false)}>
+                <X size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Sorteio'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Seleccione jogadores e faça o sorteio para gerar equipas.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Grave o jogo para criar registos de jogo e de pagamentos automaticamente.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Após gravar, vá a Resultados para definir vencedor e inserir golos.'}</Text>
+              </View>
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Rankings'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Exibe a classificação dos jogadores com base nos resultados.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Apenas para consulta; não modifica jogos.'}</Text>
+              </View>
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Jogadores'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Gerencie a lista: adicionar, editar e definir visibilidade.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Alterar nome atualiza todos os registos onde o nome aparece.'}</Text>
+              </View>
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Resultados'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Definir vencedor permite também inserir o placar (golos A/B) para jogos recentes.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Apagar um jogo aqui remove o registo do jogo; pagamentos podem permanecer.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Para apagar também os pagamentos, utilize a secção Finanças.'}</Text>
+              </View>
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Finanças'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Lista dívidas por jogo (tabela calotes_jogo).'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Marque as checkboxes «Jogo» e «Atraso» e pressione Guardar para persistir alterações.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Apagar um jogo aqui apaga primeiro os registos de pagamentos e depois o jogo — use para limpar ambos.'}</Text>
+              </View>
+
+              <View style={{ marginBottom: 12 }}>
+                <Text style={[styles.helpSectionTitle, { color: theme.text }]}>{'Configurações'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Perfil: altere seu nome e compartilhe o ID do clube.'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Personalizar Sorteio: ajuste nomes/cores das equipas e variação de rating (apenas admins).'}</Text>
+                <Text style={[styles.helpText, { color: theme.text }]}>{'- Administração: sair do cluster ou eliminar o cluster (esta última apaga TODOS os dados).'}</Text>
+              </View>
+
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.helpTip, { color: theme.text }]}>{'- Dica: para remover um jogo e os pagamentos associados, apague-o a partir da secção Finanças.'}</Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal: Personalizar Sorteio */}
       <Modal
         visible={showDrawModal}
@@ -1074,30 +1151,19 @@ export default function SettingsScreen() {
           <View style={[styles.confirmationModal, { backgroundColor: theme.background }]}>
             <View style={styles.confirmationHeader}>
               <AlertCircle size={48} color="#f39c12" />
-              <Text style={[styles.confirmationTitle, { color: theme.text }]}>
-                Sair do Cluster
-              </Text>
+              <Text style={[styles.confirmationTitle, { color: theme.text }]}>Sair do Cluster</Text>
             </View>
             
             <ScrollView style={styles.confirmationBody}>
-              <Text style={[styles.confirmationText, { color: theme.text }]}> 
-                Tem a certeza que deseja sair do cluster &quot;{clusterDisplayName || clusterName}&quot;?
-              </Text>
-              
-              <Text style={[styles.confirmationWarning, { color: theme.text }]}>
-                Esta ação irá:
-              </Text>
-              
+              <Text style={[styles.confirmationText, { color: theme.text }]}>Tem a certeza que deseja sair do cluster "{clusterDisplayName || clusterName}"?</Text>
+              <Text style={[styles.confirmationWarning, { color: theme.text }]}>Esta ação irá:</Text>
               <View style={styles.confirmationList}>
                 <Text style={[styles.confirmationListItem, { color: theme.text }]}>• Remover você da lista de membros</Text>
                 <Text style={[styles.confirmationListItem, { color: theme.text }]}>• Fazer logout automaticamente</Text>
               </View>
-              
-              <Text style={[styles.confirmationFinalWarning, { color: '#2ecc71' }]}>
-                ℹ️ Os dados do cluster (jogadores, jogos, etc.) serão mantidos
-              </Text>
+              <Text style={[styles.confirmationFinalWarning, { color: '#2ecc71' }]}>ℹ️ Os dados do cluster (jogadores, jogos, etc.) serão mantidos</Text>
             </ScrollView>
-            
+
             <View style={styles.confirmationButtons}>
               <TouchableOpacity
                 style={[styles.confirmationCancelButton, { borderColor: theme.border }]}
@@ -1638,6 +1704,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
     opacity: 0.9,
+  },
+  helpSectionTitle: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    marginBottom: 6,
+  },
+  helpText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 20,
+  },
+  helpTip: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    opacity: 0.85,
   },
   clubName: {
     fontSize: 18,
