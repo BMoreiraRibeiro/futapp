@@ -560,14 +560,15 @@ export default function SettingsScreen() {
         }}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.centeredModalOverlay}>
+            <View style={[styles.modalContent, styles.centeredModalContent, { backgroundColor: theme.cardBackground }]}>
               <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
-              <TouchableOpacity onPress={() => { hideToast(); setIsRenamingCluster(false); setNewClusterName(''); setIsEditingPlayerName(false); setTempPlayerName(playerName); setShowProfileModal(false); }}>
-                <X size={24} color={theme.text} />
-              </TouchableOpacity>
-            </View>
+                <View style={{ width: 48 }} />
+                <Text style={[styles.modalTitle, { color: theme.text }]}>👤 Perfil</Text>
+                <TouchableOpacity onPress={() => { hideToast(); setIsRenamingCluster(false); setNewClusterName(''); setIsEditingPlayerName(false); setTempPlayerName(playerName); setShowProfileModal(false); }}>
+                  <X size={24} color={theme.text} />
+                </TouchableOpacity>
+              </View>
             <ScrollView style={styles.modalBody} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
               {/* Informações do Clube */}
               <View style={[styles.profileSection, { borderBottomColor: theme.border }]}> 
@@ -864,14 +865,17 @@ export default function SettingsScreen() {
         onRequestClose={() => setShowDrawModal(false)}
       >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.cardBackground }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>⚽ Personalizar Sorteio</Text>
-              <TouchableOpacity onPress={() => setShowDrawModal(false)}>
-                <X size={24} color={theme.text} />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.centeredModalOverlayDark}>
+            <View style={[styles.modalContent, styles.centeredModalContent, { backgroundColor: theme.cardBackground }]}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setShowDrawModal(false)} style={{ paddingRight: 8 }}>
+                  <Text style={{ color: theme.primary, fontFamily: 'Inter_600SemiBold' }}>{'◀ Voltar'}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>⚽ Personalizar Sorteio</Text>
+                <TouchableOpacity onPress={() => setShowDrawModal(false)}>
+                  <X size={24} color={theme.text} />
+                </TouchableOpacity>
+              </View>
             <ScrollView style={styles.modalBody}>
               {/* Variação de Rating */}
               <View style={styles.ratingRow}>
@@ -1228,11 +1232,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  centeredModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  centeredModalOverlayDark: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   modalContent: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
     minHeight: '50%',
+  },
+  centeredModalContent: {
+    borderRadius: 20,
+    width: '94%',
+    maxWidth: 720,
+    maxHeight: '80%',
+    minHeight: '40%',
+    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
