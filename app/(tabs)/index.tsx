@@ -442,10 +442,10 @@ export default function IndexScreen() {
                     {/* Footer actions: Voltar e Sortear novamente (reroll) */}
                     <View style={styles.modalFooter}>
                       <TouchableOpacity
-                        style={[styles.modalFooterButton, { backgroundColor: theme.secondary, borderColor: theme.secondary }]}
+                        style={[styles.modalFooterButton, { backgroundColor: theme.primary, borderColor: theme.primary }]}
                         onPress={() => setTeams([])}
                       >
-                        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.modalFooterButtonText, { color: '#a42525ff' }]}>Voltar</Text>
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.modalFooterButtonText, { color: '#ffffff' }]}>Voltar</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
