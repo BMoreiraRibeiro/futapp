@@ -10,6 +10,7 @@ type PlayerPayment = {
   id_jogador: string;
   nome: string;
   pago: boolean;
+  pagou_atraso?: boolean;
 };
 
 type PaymentsModalProps = {
@@ -63,6 +64,7 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         .from('calotes_jogo')
         .select(`
           pago,
+          pagou_atraso,
           id_jogador,
           jogadores!inner (
             nome
@@ -78,7 +80,8 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
         paymentsData?.map(p => [
           p.id_jogador,
           // @ts-ignore
-          { pago: p.pago, nome: p.jogadores?.nome }
+          // @ts-ignore
+          { pago: p.pago, pagou_atraso: p.pagou_atraso, nome: p.jogadores?.nome }
         ]) || []
       );
 
@@ -104,7 +107,8 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           return {
             id_jogador,
             nome: playersMap.get(id_jogador) || 'Desconhecido',
-            pago: paymentInfo?.pago || false
+              pago: paymentInfo?.pago || false,
+              pagou_atraso: paymentInfo?.pagou_atraso || false
           };
         }),
         ...jogadoresEquipaB.map((id_jogador: string) => {
@@ -112,7 +116,8 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           return {
             id_jogador,
             nome: playersMap.get(id_jogador) || 'Desconhecido',
-            pago: paymentInfo?.pago || false
+              pago: paymentInfo?.pago || false,
+              pagou_atraso: paymentInfo?.pagou_atraso || false
           };
         })
       ];
@@ -149,6 +154,16 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
     );
   };
 
+  const toggleAtrasoPayment = (playerId: string) => {
+    setPlayerPayments(prev =>
+      prev.map(p =>
+        p.id_jogador === playerId
+          ? { ...p, pagou_atraso: !p.pagou_atraso }
+          : p
+      )
+    );
+  };
+
   const handleSave = async () => {
     try {
       setLoading(true);
@@ -165,7 +180,8 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
             cluster_uuid: clusterId,
             id_jogo: gameId,
             id_jogador: player.id_jogador,
-            pago: player.pago
+            pago: player.pago,
+            pagou_atraso: player.pagou_atraso || false
           }, {
             onConflict: 'cluster_uuid,id_jogo,id_jogador'
           })
@@ -212,8 +228,15 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
           </View>
 
           <View style={[styles.listHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.headerLabel, { color: theme.text }]}>Jogador</Text>
-            <Text style={[styles.headerLabel, { color: theme.text }]}>Pago</Text>
+            <Text style={[styles.headerLabel, { color: theme.text, flex: 1 }]}>Jogador</Text>
+
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.headerLabel, { color: theme.text }]}>Pagou:</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                <Text style={[styles.subHeaderLabel, { color: theme.primary, marginRight: 12 }]}>Jogo</Text>
+                <Text style={[styles.subHeaderLabel, { color: theme.success }]}>Atraso</Text>
+              </View>
+            </View>
           </View>
 
           <ScrollView style={styles.scrollView}>
@@ -238,18 +261,33 @@ export function PaymentsModal({ visible, onClose, gameId, clusterId, gameDate, i
                   onPress={() => isAdmin && togglePayment(player.id_jogador)}
                   disabled={!isAdmin}
                 >
-                  <Text style={[styles.playerName, { color: theme.text }]}>
+                  <Text style={[styles.playerName, { color: theme.text }]}> 
                     {player.nome}
                   </Text>
                   <View style={[
                     styles.checkbox,
                     {
                       backgroundColor: player.pago ? theme.primary : 'transparent',
-                      borderColor: player.pago ? theme.primary : theme.border
+                      borderColor: player.pago ? theme.primary : theme.border,
+                      marginRight: 8
                     }
                   ]}>
                     {player.pago && <Check size={18} color="#ffffff" />}
                   </View>
+
+                  <TouchableOpacity
+                    onPress={() => isAdmin && toggleAtrasoPayment(player.id_jogador)}
+                    disabled={!isAdmin}
+                    style={[
+                      styles.checkbox,
+                      {
+                        backgroundColor: player.pagou_atraso ? theme.success : 'transparent',
+                        borderColor: player.pagou_atraso ? theme.success : theme.border
+                      }
+                    ]}
+                  >
+                    {player.pagou_atraso && <Check size={18} color="#ffffff" />}
+                  </TouchableOpacity>
                 </TouchableOpacity>
               ))
             ) : (
@@ -338,6 +376,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
     opacity: 0.7,
+  },
+  subHeaderLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    opacity: 0.9,
   },
   scrollView: {
     maxHeight: 400,
