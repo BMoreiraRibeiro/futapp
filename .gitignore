@@ -49,3 +49,6 @@ ios/build/
 # IDE
 .vscode/
 .idea/
+
+# Local Netlify folder
+.netlify

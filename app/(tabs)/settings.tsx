@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView, Image, Modal, Alert, Share, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
@@ -957,7 +957,7 @@ export default function SettingsScreen() {
                 <X size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <View style={styles.languageButtons}>
                 <TouchableOpacity
                   style={[
@@ -1102,6 +1102,9 @@ export default function SettingsScreen() {
                   }}
                   keyboardType="decimal-pad"
                   maxLength={4}
+                  returnKeyType="done"
+                  blurOnSubmit={true}
+                  onSubmitEditing={() => Keyboard.dismiss()}
                 />
               </View>
 
@@ -1118,6 +1121,9 @@ export default function SettingsScreen() {
                     }]}
                     value={tempTeamAName}
                     onChangeText={setTempTeamAName}
+                    returnKeyType="done"
+                    blurOnSubmit={true}
+                    onSubmitEditing={() => Keyboard.dismiss()}
                     placeholder={t('settings.teamAPlaceholder')}
                     placeholderTextColor={theme.placeholderText}
                   />
@@ -1153,6 +1159,9 @@ export default function SettingsScreen() {
                     }]}
                     value={tempTeamBName}
                     onChangeText={setTempTeamBName}
+                    returnKeyType="done"
+                    blurOnSubmit={true}
+                    onSubmitEditing={() => Keyboard.dismiss()}
                     placeholder={t('settings.teamBPlaceholder')}
                     placeholderTextColor={theme.placeholderText}
                   />
@@ -1177,9 +1186,10 @@ export default function SettingsScreen() {
 
               <TouchableOpacity
                 style={[styles.saveButton, { backgroundColor: theme.primary }]}
-                onPress={() => {
-                  saveAllSettings();
-                  setShowDrawModal(false);
+                onPress={async () => {
+                  await saveAllSettings();
+                  // wait a tick to allow keyboard to dismiss and avoid modal/layout flicker
+                  setTimeout(() => setShowDrawModal(false), 120);
                 }}
               >
                 <Text style={styles.saveButtonText}>{t('common.saveSettings')}</Text>

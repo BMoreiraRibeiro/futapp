@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useAuth } from '../lib/auth';
 import { Text, StyleSheet, Animated } from 'react-native';
 
 type ToastProps = {
@@ -9,7 +10,11 @@ type ToastProps = {
 };
 
 export const Toast = ({ message, type = 'info', visible, onHide }: ToastProps) => {
+  const { isInitializing } = useAuth();
   const opacity = useRef(new Animated.Value(0)).current;
+
+  // Do not show toasts while auth is initializing to avoid flashing messages
+  if (isInitializing) return null;
 
   useEffect(() => {
     if (visible) {

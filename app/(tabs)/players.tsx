@@ -18,7 +18,7 @@ type Player = {
 export default function PlayersScreen() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
-  const { clusterName } = useAuth();
+  const { clusterName, isAdmin } = useAuth();
   const { t } = useLanguage();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
@@ -257,9 +257,10 @@ export default function PlayersScreen() {
     <View style={[styles.playerCard, { backgroundColor: theme.cardBackground }]}> 
       <View style={styles.playerInfo}> 
         <Text style={[styles.playerName, { color: theme.text }]}>{item.nome}</Text> 
-  <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {formatRating(item.rating)}</Text> 
+        <Text style={[styles.playerRating, { color: theme.text }]}>Rating: {formatRating(item.rating)}</Text> 
       </View> 
       <View style={styles.playerActions}> 
+        {/* Visibility toggle is available to everyone */}
         <TouchableOpacity 
           onPress={() => handleToggleVisibility(item.id_jogador, item.visivel)} 
           style={[styles.actionButton, { backgroundColor: item.visivel ? theme.success : theme.error }]} 
@@ -267,24 +268,33 @@ export default function PlayersScreen() {
           <Text style={styles.actionButtonText}> 
             {item.visivel ? t('players.available') : t('players.injured')} 
           </Text> 
-        </TouchableOpacity> 
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: theme.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} 
-          onPress={() => handleEdit(item)} 
-          disabled={!!editSuccessId} 
-        > 
-          {editSuccessId === item.id_jogador ? ( 
-            <Check size={20} color="#4ade80" style={{ marginRight: 4 }} /> 
-          ) : ( 
-            <Text style={styles.actionButtonText}>{t('common.edit')}</Text> 
-          )} 
-        </TouchableOpacity> 
-        <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: theme.error }]} 
-          onPress={() => handleDeletePlayer(item.id_jogador, item.nome)} 
-        > 
-          <Text style={styles.actionButtonText}>{t('common.delete')}</Text> 
-        </TouchableOpacity> 
+        </TouchableOpacity>
+
+        {isAdmin ? (
+          <>
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: theme.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} 
+              onPress={() => handleEdit(item)} 
+              disabled={!!editSuccessId} 
+            > 
+              {editSuccessId === item.id_jogador ? ( 
+                <Check size={20} color="#4ade80" style={{ marginRight: 4 }} /> 
+              ) : ( 
+                <Text style={styles.actionButtonText}>{t('common.edit')}</Text> 
+              )} 
+            </TouchableOpacity> 
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: theme.error }]} 
+              onPress={() => handleDeletePlayer(item.id_jogador, item.nome)} 
+            > 
+              <Text style={styles.actionButtonText}>{t('common.delete')}</Text> 
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.nonAdminActions}>
+            <Text style={[styles.nonAdminText, { color: theme.text }]}>Somente administradores podem editar/excluir</Text>
+          </View>
+        )}
       </View> 
     </View>
   );
@@ -482,6 +492,17 @@ const styles = StyleSheet.create({
   playerActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  nonAdminActions: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  nonAdminText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    textAlign: 'center',
   },
   actionButton: {
     flex: 1,

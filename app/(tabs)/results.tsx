@@ -12,6 +12,7 @@ import { useResults } from '../../lib/results';
 import { Picker } from '@react-native-picker/picker';
 import { useLanguage } from '../../lib/language';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useClusterSettings } from '../../hooks/useClusterSettings';
 
 type GameResult = {
   id_jogo: string;
@@ -32,10 +33,17 @@ export default function ResultsScreen() {
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
   const [viewGoalsModalVisible, setViewGoalsModalVisible] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameResult | null>(null);
+  // Local optimistic winners map to reflect chosen winner immediately in the UI
+  const [localWinners, setLocalWinners] = useState<Record<string, 'A' | 'B' | 'E'>>({});
   const [selectedYear, setSelectedYear] = useState<string>('total');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [teamAName, setTeamAName] = useState('Equipa A');
   const [teamBName, setTeamBName] = useState('Equipa B');
+  const [teamAColor, setTeamAColor] = useState('#3498db');
+  const [teamBColor, setTeamBColor] = useState('#e74c3c');
+  // Cor usada para indicar um empate (botão de empate)
+  const drawColor = '#9CA3AF';
+  const { settings: clusterSettings, loading: clusterSettingsLoading } = useClusterSettings(clusterName);
   const [toastConfig, setToastConfig] = useState<{
     visible: boolean;
     message: string;
@@ -53,9 +61,18 @@ export default function ResultsScreen() {
     if (clusterName) {
       fetchResults(clusterName);
       loadAvailableYears();
-      loadTeamNames();
+
+      // Preferir configurações do cluster quando disponíveis
+      if (!clusterSettingsLoading && clusterSettings) {
+        setTeamAName(clusterSettings.team_a_name || 'Equipa A');
+        setTeamBName(clusterSettings.team_b_name || 'Equipa B');
+        setTeamAColor(clusterSettings.team_a_color || '#3498db');
+        setTeamBColor(clusterSettings.team_b_color || '#e74c3c');
+      } else {
+        loadTeamNames();
+      }
     }
-  }, [clusterName]);
+  }, [clusterName, clusterSettings, clusterSettingsLoading]);
 
   const loadTeamNames = async () => {
     try {
@@ -168,8 +185,10 @@ export default function ResultsScreen() {
         .eq('id_jogo', id_jogo);
 
       if (error) throw error;
+      // Update local optimistic map so the UI shows the winner immediately
+      setLocalWinners(prev => ({ ...prev, [id_jogo]: winner }));
       showToast('Vencedor definido com sucesso', 'success');
-  fetchResults(clusterName);
+      fetchResults(clusterName);
     } catch (error) {
       console.error('Erro ao definir vencedor:', error);
       showToast('Erro ao definir vencedor', 'error');
@@ -189,6 +208,7 @@ export default function ResultsScreen() {
   };
 
   const renderGame = ({ item }: { item: GameResult }) => {
+    const displayedWinner = localWinners[item.id_jogo] ?? item.vencedor;
     const isRecentGame = results
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
       .slice(0, 2)
@@ -196,86 +216,57 @@ export default function ResultsScreen() {
 
     return (
       <View key={item.id_jogo} style={[
-        styles.gameCard, 
-        { 
-          backgroundColor: theme.cardBackground,
-          opacity: deletingId === item.id_jogo ? 0.5 : 1
-        }
+        styles.gameCard,
+        { backgroundColor: theme.cardBackground, opacity: deletingId === item.id_jogo ? 0.5 : 1 }
       ]}>
-        {item.vencedor ? (
+        {displayedWinner ? (
           <View style={styles.finishedGame}>
             <View style={styles.gameHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={[styles.gameDate, { color: theme.text }]}>
-                  {new Date(item.data).toLocaleDateString('pt-PT')}
-                </Text>
-                <Text style={[styles.winnerLabel, { color: theme.text }]}> {item.vencedor === 'E' ? t('results.draw') : (item.vencedor === 'A' ? teamAName : teamBName)} </Text>
+                <Text style={[styles.gameDate, { color: theme.text }]}>{new Date(item.data).toLocaleDateString('pt-PT')}</Text>
+                <Text style={[styles.winnerLabel, { color: theme.text }]}> {displayedWinner === 'E' ? t('results.draw') : (displayedWinner === 'A' ? teamAName : teamBName)} </Text>
                 <Text style={[styles.matchResult, { color: theme.text }]}>({item.golos_a ?? 0}-{item.golos_b ?? 0})</Text>
               </View>
-              <View style={[styles.winnerButton, { backgroundColor: theme.secondary }]}>
+              <View style={[styles.winnerButton, { backgroundColor: displayedWinner === 'A' ? teamAColor : (displayedWinner === 'B' ? teamBColor : drawColor) }]}> 
                 <Trophy size={16} color="#FFD700" />
-                <Text style={[styles.winnerButtonText, { marginLeft: 6 }]}>
-                  {item.vencedor === 'E' ? t('results.draw') : (item.vencedor === 'A' ? teamAName : teamBName)}
-                </Text>
+                <Text style={[styles.winnerButtonText, { marginLeft: 6 }]}>{displayedWinner === 'E' ? t('results.draw') : (displayedWinner === 'A' ? teamAName : teamBName)}</Text>
               </View>
             </View>
-            
+
             <View style={styles.teamSection}>
-              <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                {item.vencedor === 'E' ? (
-                  <>
-                    <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                      {t('index.teamA')}: {item.jogadores_equipa_a.join(', ')}
-                    </Text>
-                    <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                      {t('index.teamB')}: {item.jogadores_equipa_b.join(', ')}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={[styles.teamPlayers, { color: theme.text }]}>
-                    {item.vencedor === 'A' ? item.jogadores_equipa_a.join(', ') : item.jogadores_equipa_b.join(', ')}
-                  </Text>
-                )}
-              </Text>
+              {item.vencedor === 'E' ? (
+                <>
+                  <Text style={[styles.teamPlayers, { color: theme.text }]}>{t('index.teamA')}: {item.jogadores_equipa_a.join(', ')}</Text>
+                  <Text style={[styles.teamPlayers, { color: theme.text }]}>{t('index.teamB')}: {item.jogadores_equipa_b.join(', ')}</Text>
+                </>
+              ) : (
+                <Text style={[styles.teamPlayers, { color: theme.text }]}>
+                  {item.vencedor === 'A' ? item.jogadores_equipa_a.join(', ') : item.jogadores_equipa_b.join(', ')}
+                </Text>
+              )}
             </View>
+
             <View style={styles.gameActions}>
               {isRecentGame ? (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                  onPress={() => handleGoalsPress(item)}
-                >
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.primary }]} onPress={() => handleGoalsPress(item)}>
                   <CircleDot size={16} color="#ffffff" />
-                  <Text style={styles.actionButtonText}>
-                    {t('results.goalsButton')}
-                  </Text>
+                  <Text style={styles.actionButtonText}>{t('results.goalsButton')}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}
-                  onPress={() => handleViewGoalsPress(item)}
-                >
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]} onPress={() => handleViewGoalsPress(item)}>
                   <Eye size={16} color={theme.text} />
-                  <Text style={[styles.actionButtonText, { color: theme.text }]}>
-                    {t('results.viewGoals')}
-                  </Text>
+                  <Text style={[styles.actionButtonText, { color: theme.text }]}>{t('results.viewGoals')}</Text>
                 </TouchableOpacity>
               )}
+
               {isRecentGame && isAdmin && (
                 <TouchableOpacity
-                  style={[
-                    styles.actionButton, 
-                    { 
-                      backgroundColor: theme.error,
-                      opacity: deletingId === item.id_jogo ? 0.5 : 1
-                    }
-                  ]}
+                  style={[styles.actionButton, { backgroundColor: theme.error, opacity: deletingId === item.id_jogo ? 0.5 : 1 }]}
                   onPress={() => deleteGame(item.id_jogo)}
                   disabled={deletingId === item.id_jogo}
                 >
                   <Trash2 size={16} color="#ffffff" />
-                  <Text style={styles.actionButtonText}>
-                    {deletingId === item.id_jogo ? t('results.deleting') : t('results.delete')}
-                  </Text>
+                  <Text style={styles.actionButtonText}>{deletingId === item.id_jogo ? t('results.deleting') : t('results.delete')}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -284,91 +275,58 @@ export default function ResultsScreen() {
           <>
             <View style={styles.gameHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={[styles.gameDate, { color: theme.text }]}>
-                  {new Date(item.data).toLocaleDateString('pt-PT')}
-                </Text>
+                <Text style={[styles.gameDate, { color: theme.text }]}>{new Date(item.data).toLocaleDateString('pt-PT')}</Text>
+                {/* Mostrar o nome da equipa vencedora antes do resultado */}
+                <Text style={[styles.winnerLabel, { color: theme.text }]}> {item.vencedor === 'E' ? t('results.draw') : (item.vencedor === 'A' ? teamAName : teamBName)} </Text>
                 <Text style={[styles.matchResult, { color: theme.text }]}>({item.golos_a ?? 0}-{item.golos_b ?? 0})</Text>
               </View>
             </View>
+
             <View style={styles.teamsContainer}>
               <View style={styles.teamSection}>
-                <Text style={[styles.teamTitle, { color: theme.text }]}>{t('index.teamA')}</Text>
+                <Text style={[styles.teamTitle, { color: theme.text }]}>{teamAName}</Text>
                 {item.jogadores_equipa_a.map((player, index) => (
-                  <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>
-                    {player}
-                  </Text>
+                  <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>{player}</Text>
                 ))}
               </View>
 
               <View style={styles.teamSection}>
-                <Text style={[styles.teamTitle, { color: theme.text }]}>{t('index.teamB')}</Text>
+                <Text style={[styles.teamTitle, { color: theme.text }]}>{teamBName}</Text>
                 {item.jogadores_equipa_b.map((player, index) => (
-                  <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>
-                    {player}
-                  </Text>
+                  <Text key={index} style={[styles.teamPlayers, { color: theme.text }]}>{player}</Text>
                 ))}
               </View>
             </View>
 
             <View style={styles.winnerButtonsContainer}>
-              <TouchableOpacity
-                style={[styles.teamWinnerButton, { backgroundColor: '#4CAF50' }]}
-                onPress={() => setWinner(item.id_jogo, 'A')}
-              >
-                <Text style={styles.teamWinnerButtonText}>{t('results.teamAWins')}</Text>
+              <TouchableOpacity style={[styles.teamWinnerButton, { backgroundColor: teamAColor }]} onPress={() => setWinner(item.id_jogo, 'A')}>
+                <Text style={styles.teamWinnerButtonText}>{teamAName}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.teamWinnerButton, { backgroundColor: '#FFC107' }]}
-                onPress={() => setWinner(item.id_jogo, 'E')}
-              >
+              <TouchableOpacity style={[styles.teamWinnerButton, { backgroundColor: drawColor }]} onPress={() => setWinner(item.id_jogo, 'E')}>
                 <Text style={styles.teamWinnerButtonText}>{t('results.draw')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.teamWinnerButton, { backgroundColor: '#2196F3' }]}
-                onPress={() => setWinner(item.id_jogo, 'B')}
-              >
-                <Text style={styles.teamWinnerButtonText}>{t('results.teamBWins')}</Text>
+              <TouchableOpacity style={[styles.teamWinnerButton, { backgroundColor: teamBColor }]} onPress={() => setWinner(item.id_jogo, 'B')}>
+                <Text style={styles.teamWinnerButtonText}>{teamBName}</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.gameActions}>
               {isRecentGame ? (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                  onPress={() => handleGoalsPress(item)}
-                >
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.primary }]} onPress={() => handleGoalsPress(item)}>
                   <CircleDot size={16} color="#ffffff" />
-                  <Text style={styles.actionButtonText}>
-                    {t('results.goalsButton')}
-                  </Text>
+                  <Text style={styles.actionButtonText}>{t('results.goalsButton')}</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}
-                  onPress={() => handleViewGoalsPress(item)}
-                >
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]} onPress={() => handleViewGoalsPress(item)}>
                   <Eye size={16} color={theme.text} />
-                  <Text style={[styles.actionButtonText, { color: theme.text }]}>
-                    {t('results.viewGoals')}
-                  </Text>
+                  <Text style={[styles.actionButtonText, { color: theme.text }]}>{t('results.viewGoals')}</Text>
                 </TouchableOpacity>
               )}
+
               {isRecentGame && isAdmin && (
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton, 
-                    { 
-                      backgroundColor: theme.error,
-                      opacity: deletingId === item.id_jogo ? 0.5 : 1
-                    }
-                  ]}
-                  onPress={() => deleteGame(item.id_jogo)}
-                  disabled={deletingId === item.id_jogo}
-                >
+                <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.error, opacity: deletingId === item.id_jogo ? 0.5 : 1 }]} onPress={() => deleteGame(item.id_jogo)} disabled={deletingId === item.id_jogo}>
                   <Trash2 size={16} color="#ffffff" />
-                  <Text style={styles.actionButtonText}>
-                    {deletingId === item.id_jogo ? t('results.deleting') : t('results.delete')}
-                  </Text>
+                  <Text style={styles.actionButtonText}>{deletingId === item.id_jogo ? t('results.deleting') : t('results.delete')}</Text>
                 </TouchableOpacity>
               )}
             </View>

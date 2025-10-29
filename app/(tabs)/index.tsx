@@ -5,6 +5,7 @@ import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useClusterSettings } from '../../hooks/useClusterSettings';
 import { Toast } from '../../components/Toast';
 import { Check, X, Users } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -30,6 +31,7 @@ export default function IndexScreen() {
   const { isDarkMode } = useTheme();
   const theme = isDarkMode ? colors.dark : colors.light;
   const { clusterName } = useAuth();
+  const { settings: clusterSettings, loading: clusterSettingsLoading } = useClusterSettings(clusterName);
   const { fetchResults } = useResults();
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
@@ -53,14 +55,24 @@ export default function IndexScreen() {
   const router = useRouter();
   const { t } = useLanguage();
 
-  // Carrega configurações e jogadores quando o cluster muda
+  // Carrega configurações e jogadores quando o cluster ou as configurações do cluster mudam
   useEffect(() => {
     if (clusterName) {
       fetchPlayers();
-      loadRatingVariation();
-      loadTeamSettings();
+      // Se as configurações do cluster estiverem disponíveis, aplica-as
+      if (!clusterSettingsLoading && clusterSettings) {
+        setTeamAName(clusterSettings.team_a_name || 'Equipa A');
+        setTeamBName(clusterSettings.team_b_name || 'Equipa B');
+        setTeamAColor(clusterSettings.team_a_color || '#3498db');
+        setTeamBColor(clusterSettings.team_b_color || '#e74c3c');
+        setRatingVariation(String(clusterSettings.rating_variation ?? '2'));
+      } else {
+        // fallback para compatibilidade (se necessário)
+        loadTeamSettings();
+        loadRatingVariation();
+      }
     }
-  }, [clusterName]);
+  }, [clusterName, clusterSettings, clusterSettingsLoading]);
 
   // Recarrega dados quando a tela ganha foco
   useFocusEffect(
@@ -77,6 +89,7 @@ export default function IndexScreen() {
   );
 
   const loadTeamSettings = async () => {
+    // Mantém a função por compatibilidade com caches antigos que possam usar chaves diretas
     try {
       const nameA = await AsyncStorage.getItem('@team_a_name');
       const nameB = await AsyncStorage.getItem('@team_b_name');
@@ -88,7 +101,7 @@ export default function IndexScreen() {
       if (colorA) setTeamAColor(colorA);
       if (colorB) setTeamBColor(colorB);
     } catch (error) {
-      console.error('Erro ao carregar configurações das equipes:', error);
+      console.error('Erro ao carregar configurações das equipes (fallback):', error);
     }
   };
 
@@ -99,7 +112,7 @@ export default function IndexScreen() {
         setRatingVariation(value);
       }
     } catch (error) {
-      console.error('Erro ao carregar variação de rating:', error);
+      console.error('Erro ao carregar variação de rating (fallback):', error);
     }
   };
 
