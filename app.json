@@ -2,7 +2,7 @@
   "expo": {
   "name": "Your FUTAPP",
   "slug": "footbeer",
-  "version": "1.0.1",
+  "version": "1.0.2",
     "scheme": "futapp",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -18,7 +18,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "1.0.1",
+  "buildNumber": "1.0.2",
       "bundleIdentifier": "com.bmoreiraribeiro.fut",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -37,7 +37,7 @@
         "backgroundColor": "#00A859"
       },
       "package": "com.bmoreiraribeiro.fut",
-      "versionCode": 2,
+  "versionCode": 3,
       "newArchEnabled": false,
       "intentFilters": [
         {
