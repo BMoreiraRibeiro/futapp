@@ -6,7 +6,7 @@
     "scheme": "futapp",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-  "icon": "./assets/images/icon.png",
+  "icon": "./assets/images/android/mipmap-xxxhdpi/ic_launcher.png",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/favicon.png",
@@ -33,7 +33,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icone_app.png",
+        "foregroundImage": "./assets/images/android/mipmap-xxxhdpi/ic_launcher_foreground.png",
         "backgroundColor": "#00A859"
       },
       "package": "com.bmoreiraribeiro.fut",
@@ -57,7 +57,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+  "favicon": "./assets/images/android/ic_launcher-web.png"
     },
     "experiments": {
       "typedRoutes": true
