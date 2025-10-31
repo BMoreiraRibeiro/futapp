@@ -79,7 +79,7 @@ export default function SettingsScreen() {
 
   // Toggle to show/hide the "Apagar Conta" button while we finish server-side flow.
   // Set to true to re-enable the button for testing.
-  const SHOW_DELETE_ACCOUNT_BUTTON = true;
+  const SHOW_DELETE_ACCOUNT_BUTTON = false;
 
   // Carregar configurações do cluster quando disponíveis (apenas na primeira vez)
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -302,26 +302,73 @@ export default function SettingsScreen() {
 
       // Name available - logs removed for production
 
-      // 2. Atualizar o nome do jogador usando user_id e cluster_uuid
-      // Updating player name - logs removed for production
-      const { error: updateError } = await supabase
+      // 2. Atualizar ou associar o jogador na tabela 'jogadores'
+      // Primeiro tentamos atualizar a linha que já tenha o user_id associado
+      let updated = false;
+
+      const { error: updateError, data: updateData } = await supabase
         .from('jogadores')
         .update({ nome: trimmedNewName })
         .eq('user_id', session.user.id)
-        .eq('cluster_uuid', clusterName);
+        .eq('cluster_uuid', clusterName)
+        .select('*');
 
       if (updateError) {
-        console.error('Erro ao atualizar nome:', updateError);
+        console.error('Erro ao atualizar nome pelo user_id:', updateError);
         throw updateError;
       }
 
-      // Name updated successfully - logs removed for production
+      if (updateData && updateData.length > 0) {
+        updated = true;
+      }
 
-      // 3. Atualizar estado local
-  setPlayerName(trimmedNewName);
-  setIsEditingPlayerName(false);
-  setPlayerNameSuccess(true);
-  setTimeout(() => setPlayerNameSuccess(false), 2000);
+      // Se não atualizamos por user_id, pode existir uma linha com o mesmo nome mas sem user_id
+      if (!updated) {
+        // Tentar associar a linha existente (mesmo nome) que tenha user_id null
+        if (existingPlayer && !existingPlayer.user_id) {
+          const { error: assocError } = await supabase
+            .from('jogadores')
+            .update({ user_id: session.user.id, nome: trimmedNewName })
+            .eq('cluster_uuid', clusterName)
+            .eq('nome', trimmedNewName);
+
+          if (assocError) {
+            console.error('Erro ao associar user_id ao jogador existente:', assocError);
+            throw assocError;
+          }
+
+          updated = true;
+        }
+      }
+
+      // Se ainda não atualizamos nada, então não existia registro: inserimos um novo jogador associado
+      if (!updated) {
+        const { error: insertError } = await supabase
+          .from('jogadores')
+          .insert([{ nome: trimmedNewName, user_id: session.user.id, cluster_uuid: clusterName }]);
+
+        if (insertError) {
+          console.error('Erro ao inserir novo jogador:', insertError);
+          throw insertError;
+        }
+      }
+
+      // 3. Atualizar o display name no Auth (user_metadata) para sincronizar com a tabela jogadores
+      try {
+        const { error: userMetaError } = await supabase.auth.updateUser({ data: { player_name: trimmedNewName } });
+        if (userMetaError) {
+          console.warn('Aviso: não foi possível atualizar user metadata no Auth:', userMetaError);
+          // Não falhamos toda a operação por conta deste erro, apenas mostramos aviso
+        }
+      } catch (err) {
+        console.warn('Aviso ao atualizar metadata do utilizador:', err);
+      }
+
+      // Atualizar estado local e UI
+      setPlayerName(trimmedNewName);
+      setIsEditingPlayerName(false);
+      setPlayerNameSuccess(true);
+      setTimeout(() => setPlayerNameSuccess(false), 2000);
       
     } catch (error: any) {
       console.error('Erro ao atualizar nome do jogador:', error);
