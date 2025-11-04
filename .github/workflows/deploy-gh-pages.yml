@@ -1,0 +1,43 @@
+name: Deploy web to gh-pages
+
+on:
+  push:
+    branches: [ main, development ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web (expo export)
+        run: npm run build:web
+
+      - name: Include callback pages and add SPA fallbacks
+        run: |
+          # Copy callback/static pages into dist so they are published together
+          if [ -d futebolasquartas ]; then
+            cp -r futebolasquartas/* dist/ || true
+          fi
+          # Netlify _redirects file (harmless if not used)
+          echo "/* /index.html 200" > dist/_redirects
+          # GitHub Pages uses 404.html as SPA fallback
+          cp dist/index.html dist/404.html || true
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          # Create an orphan branch so the gh-pages branch contains only the build
+          force_orphan: true
