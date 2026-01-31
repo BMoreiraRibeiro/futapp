@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet, Animated, Image, Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -12,12 +12,25 @@ import { ResultsProvider } from '../lib/results';
 import { LanguageProvider } from '../lib/language';
 import * as SplashScreen from 'expo-splash-screen';
 import NetInfo from '@react-native-community/netinfo';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import * as NavigationBar from 'expo-navigation-bar';
 import useAuthDeepLinkHandler from '../hooks/useAuthDeepLinkHandler';
 
 // Impede o escondimento automático do SplashScreen
 SplashScreen.preventAutoHideAsync().catch((error) => console.warn(error));
+
+// Configurar QueryClient com cache inteligente
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutos
+      gcTime: 10 * 60 * 1000, // 10 minutos (antigo cacheTime)
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function CustomSplashScreen({ message }: { message?: string }) {
   const [rotation] = useState(new Animated.Value(0));
@@ -102,16 +115,34 @@ function CustomSplashScreen({ message }: { message?: string }) {
 
 function RootLayoutNav() {
   const { isAuthenticated, session, hasCluster, clusterName, updateClusterState, isSessionValid, isInitializing } = useAuth();
+  const router = useRouter();
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [isValidating, setIsValidating] = useState(true);
   const [shouldRedirectToAuth, setShouldRedirectToAuth] = useState(false);
   const [hasInternet, setHasInternet] = useState(true);
   const [showNoInternetModal, setShowNoInternetModal] = useState(false);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  
+  // Hook para capturar deep links de auth (confirm / reset)
+  // IMPORTANTE: Todos os hooks devem ser chamados ANTES de qualquer return condicional
+  useAuthDeepLinkHandler();
   
   // 🔍 MONITOR: Rastreia mudanças nos estados do Auth
   useEffect(() => {
-    // Auth states monitoring removed for production
-  }, [isAuthenticated, hasCluster, clusterName, session, showClusterModal, isValidating, shouldRedirectToAuth]);
+    // Safety: if auth check completed and we decided to redirect to auth,
+    // ensure the router actually navigates to /auth. This is a defensive
+    // measure to avoid any race that leaves the app on protected routes.
+    if (!authCheckComplete) return;
+
+    if (shouldRedirectToAuth) {
+      try {
+        router.replace('/auth');
+      } catch (e) {
+        // ignore router errors - this is a best-effort safeguard
+      }
+    }
+  }, [authCheckComplete, shouldRedirectToAuth, router]);
+  
 
   // 🔍 MONITOR: Detecta quando hasCluster muda
   useEffect(() => {
@@ -160,9 +191,6 @@ function RootLayoutNav() {
     return () => unsubscribe();
   }, []);
 
-  // Hook para capturar deep links de auth (confirm / reset)
-  useAuthDeepLinkHandler();
-
   useEffect(() => {
     const validateAuth = async () => {
       try {
@@ -171,25 +199,30 @@ function RootLayoutNav() {
         // Aguarda o AuthProvider terminar de inicializar
         if (isInitializing) {
           // Still initializing - logs removed for production
+          setAuthCheckComplete(false); // 🔒 CRÍTICO: Garante que não passa pela guarda enquanto inicializa
           return;
         }
 
         // IMPORTANTE: Sempre iniciar como "validando" para evitar flash de conteúdo
         setIsValidating(true);
+        setAuthCheckComplete(false); // 🔒 CRÍTICO: Reset durante validação
 
         // 1. Verificar se tem internet
         if (!hasInternet) {
           // No internet - logs removed for production
+          setShouldRedirectToAuth(false); // Não redireciona, só mostra modal de sem internet
           setIsValidating(false);
+          setAuthCheckComplete(true);
           return;
         }
 
         // 2. Verificar se tem sessão válida
         if (!session || !isSessionValid()) {
           // Invalid session - logs removed for production
-          setShouldRedirectToAuth(true);
+          setShouldRedirectToAuth(true); // 🔒 CRÍTICO: Marca explicitamente para redirecionar
           setShowClusterModal(false); // Esconde o modal ao redirecionar para auth
           setIsValidating(false);
+          setAuthCheckComplete(true); // 🔒 CRÍTICO: Só marca como complete DEPOIS de setar shouldRedirectToAuth
           return;
         }
 
@@ -213,6 +246,7 @@ function RootLayoutNav() {
             setShouldRedirectToAuth(true);
             setShowClusterModal(false);
             setIsValidating(false);
+            setAuthCheckComplete(true);
             return;
           }
 
@@ -258,16 +292,19 @@ function RootLayoutNav() {
           }
         } else {
           // Not authenticated - logs removed for production
-          setShouldRedirectToAuth(true);
+          setShouldRedirectToAuth(true); // 🔒 CRÍTICO: Marca explicitamente
           setShowClusterModal(false);
         }
       } catch (error) {
         console.error('❌ validateAuth - Erro na validação:', error);
-        setShouldRedirectToAuth(true);
+        setShouldRedirectToAuth(true); // 🔒 CRÍTICO: Em caso de erro, redireciona para auth
         setShowClusterModal(false);
       } finally {
         // Validation completed - logs removed for production
         setIsValidating(false);
+        // ⏱️ DELAY CRÍTICO: Garante que shouldRedirectToAuth foi processado antes de marcar como complete
+        await new Promise(resolve => setTimeout(resolve, 50));
+        setAuthCheckComplete(true);
       }
     };
 
@@ -305,10 +342,32 @@ function RootLayoutNav() {
     return <NoInternetModal visible={showNoInternetModal} onRetry={handleRetryConnection} />;
   }
 
-  // Mostra o CustomSplashScreen enquanto está inicializando ou validando
-  if (isInitializing || isValidating) {
+  // 🛡️ GUARDA 1 DE SEGURANÇA: Nunca renderizar nada até a verificação de auth estar completa
+  if (isInitializing || isValidating || !authCheckComplete) {
     // Showing SplashScreen - logs removed for production
     return <CustomSplashScreen message={isInitializing ? "Carregando..." : "Validando sessão..."} />;
+  }
+
+  // 🛡️ GUARDA 2 DE SEGURANÇA: Se não está autenticado OU não tem sessão válida OU foi marcado para redirect
+  // SEMPRE mostrar tela de auth (lógica "deny by default")
+  if (!isAuthenticated || !session || !isSessionValid() || shouldRedirectToAuth) {
+    return (
+      <ResultsProvider>
+        <>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen 
+              name="auth" 
+              options={{ 
+                headerShown: false,
+                gestureEnabled: false
+              }} 
+            />
+            <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
+          </Stack>
+          <StatusBar style="light" />
+        </>
+      </ResultsProvider>
+    );
   }
 
   // CRÍTICO: Se está autenticado MAS não tem cluster, mostra APENAS o ClusterModal
@@ -334,29 +393,19 @@ function RootLayoutNav() {
     return <CustomSplashScreen message="Re-validando..." />;
   }
 
-  // Em vez de usar router.replace, decidimos qual tela mostrar usando condicionais
-  // Rendering Stack - logs removed for production
+  // 🎯 APENAS chega aqui se: isAuthenticated === true E hasCluster === true E session válida
+  // Renderiza as tabs com segurança total
   return (
     <ResultsProvider>
       <>
         <Stack screenOptions={{ headerShown: false }}>
-          {shouldRedirectToAuth || !isAuthenticated ? (
-            <Stack.Screen 
-              name="auth" 
-              options={{ 
-                headerShown: false,
-                gestureEnabled: false
-              }} 
-            />
-          ) : (
-            <Stack.Screen 
-              name="(tabs)" 
-              options={{ 
-                headerShown: false,
-                gestureEnabled: false
-              }} 
-            />
-          )}
+          <Stack.Screen 
+            name="(tabs)" 
+            options={{ 
+              headerShown: false,
+              gestureEnabled: false
+            }} 
+          />
           <Stack.Screen name="+not-found" options={{ title: 'Oops!' }} />
         </Stack>
         <StatusBar style="light" />
@@ -450,13 +499,15 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      <ThemeProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <RootLayoutNav />
-          </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <RootLayoutNav />
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </View>
   );
 }

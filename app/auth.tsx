@@ -302,17 +302,23 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
 
-  // Criar deep link para retornar à app (apenas deep-link, sem página web)
-  // Exemplo: futapp://auth
-  const redirectUrl = 'futapp://auth';
-  console.log('📱 Redirect URL (deep-link):', redirectUrl);
+      // Detectar se está na web ou mobile
+      const isWeb = Platform.OS === 'web';
+      
+      // Na web, redirecionar para a página principal do Netlify
+      // No mobile, usar deep link
+      const redirectUrl = isWeb 
+        ? 'https://futbeer.netlify.app/' 
+        : 'futapp://auth';
+      
+      console.log(`📱 Redirect URL (${isWeb ? 'web' : 'mobile'}):`, redirectUrl);
 
       // Iniciar fluxo OAuth
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: false,
+          skipBrowserRedirect: false, // Não pular redirect em ambos os casos
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
@@ -329,13 +335,15 @@ export default function AuthScreen() {
 
       console.log('🔗 URL OAuth gerada:', data?.url);
 
-      // Abrir browser externo para autenticação
-      if (data?.url) {
-        // Abrir no navegador externo
+      // MOBILE: Abrir browser externo para autenticação
+      // O retorno será tratado pelo deep-link listener (handleDeepLink)
+      if (!isWeb && data?.url) {
         await WebBrowser.openBrowserAsync(data.url);
-        // O retorno será tratado pelo deep-link listener (handleDeepLink)
-        // O restante do fluxo permanece igual, pois o deep-link já está implementado
       }
+      
+      // WEB: O Supabase já redireciona automaticamente o browser
+      // Quando retornar à página, a sessão estará ativa e vamos verificar identities
+      
     } catch (error: any) {
       console.error('💥 Erro crítico no login Google:', error);
       setError(error?.message || 'Erro ao fazer login com Google');
@@ -344,6 +352,41 @@ export default function AuthScreen() {
       setLoading(false);
     }
   }
+
+  // Verificar se o utilizador tem múltiplas identities (contas unificadas)
+  useEffect(() => {
+    const checkLinkedIdentities = async () => {
+      try {
+        // Buscar sessão atual
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        
+        if (currentSession?.user) {
+          // Buscar todas as identidades do utilizador
+          const response = await supabase.auth.getUserIdentities();
+          
+          if (!response.error && response.data && response.data.identities && response.data.identities.length > 1) {
+            const identities = response.data.identities;
+            // Utilizador tem mais de uma identidade - contas foram unificadas
+            const providers = identities.map((identity: any) => identity.provider).join(' e ');
+            console.log('🔗 Contas unificadas detectadas:', providers);
+            
+            // Verificar se acabou de fazer login com Google e já tinha email
+            const hasGoogle = identities.some((identity: any) => identity.provider === 'google');
+            const hasEmail = identities.some((identity: any) => identity.provider === 'email');
+            
+            if (hasGoogle && hasEmail) {
+              showToast('Contas unificadas! Agora podes fazer login com Google ou email/password.', 'success');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao verificar identidades:', err);
+      }
+    };
+
+    // Verificar identidades após login
+    checkLinkedIdentities();
+  }, [session]);
 
   // === LOGIN (sem nome do jogador) ===
   async function handleLogin() {
@@ -441,7 +484,7 @@ export default function AuthScreen() {
         email,
         password,
         options: {
-          emailRedirectTo: 'https://futebolasquartas.netlify.app',
+          emailRedirectTo: 'https://futbeer.netlify.app/email-callback.html',
           data: {
             player_name: playerName.trim()
           }
@@ -515,7 +558,7 @@ export default function AuthScreen() {
       setError(null);
 
       let res = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://futebolasquartas.netlify.app',
+        redirectTo: 'https://futbeer.netlify.app/reset-password.html',
       });
 
       let { data, error } = res;

@@ -35,6 +35,8 @@ export default function FinancesScreen() {
   const [mensalPlayers, setMensalPlayers] = useState<{ id_jogador: string; nome: string }[]>([]);
   const [mensalYear, setMensalYear] = useState<string>(new Date().getFullYear().toString());
   const [availableMensalYears, setAvailableMensalYears] = useState<string[]>([]);
+  const [selectedYearPorJogo, setSelectedYearPorJogo] = useState<string>('total');
+  const [availableYearsPorJogo, setAvailableYearsPorJogo] = useState<string[]>([]);
   const [monthlyModalVisible, setMonthlyModalVisible] = useState(false);
   const [selectedPlayerForMonthly, setSelectedPlayerForMonthly] = useState<{ id: string; nome: string } | null>(null);
   const [toastConfig, setToastConfig] = useState<{
@@ -52,6 +54,7 @@ export default function FinancesScreen() {
       loadGames();
       loadMensalPlayers();
       loadAvailableMensalYears();
+      loadAvailableYearsPorJogo();
     }
   }, [clusterName]);
 
@@ -97,6 +100,38 @@ export default function FinancesScreen() {
       if (!mensalYear && years.length > 0) setMensalYear(years[0]);
     } catch (error) {
       console.error('Erro ao carregar anos mensais:', error);
+    }
+  };
+
+  const loadAvailableYearsPorJogo = async () => {
+    try {
+      if (!clusterName) return;
+      
+      const { data: gamesData, error } = await supabase
+        .from('resultados_jogos')
+        .select('data')
+        .eq('cluster_uuid', clusterName);
+
+      if (error) throw error;
+
+      const years = gamesData
+        ?.map(game => {
+          const date = new Date(game.data);
+          return isNaN(date.getTime()) ? null : date.getFullYear().toString();
+        })
+        .filter((year): year is string => year !== null)
+        .filter((year, index, self) => self.indexOf(year) === index)
+        .sort((a, b) => parseInt(b) - parseInt(a)) || [];
+
+      setAvailableYearsPorJogo(years);
+      
+      // Default to current year if available
+      const currentYear = new Date().getFullYear().toString();
+      if (years.includes(currentYear)) {
+        setSelectedYearPorJogo(currentYear);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar anos para Por Jogo:', error);
     }
   };
 
@@ -301,19 +336,40 @@ export default function FinancesScreen() {
       </View>
 
       {selectedTab === 'por_jogo' ? (
-        <FlatList
-          data={games}
-          renderItem={renderGame}
-          keyExtractor={(item) => item.id_jogo}
-          contentContainerStyle={styles.listContainer}
-          refreshing={loading}
-          onRefresh={loadGames}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogo registrado</Text>
-            </View>
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <View style={[styles.pickerContainer, { 
+            backgroundColor: isDarkMode ? '#1a3a52' : '#e3f2fd', 
+            borderColor: isDarkMode ? '#2d5f8d' : '#90caf9' 
+          }]}>
+            <Picker
+              selectedValue={selectedYearPorJogo}
+              onValueChange={(itemValue) => setSelectedYearPorJogo(itemValue)}
+              style={[styles.picker, { color: theme.text }]}
+            >
+              <Picker.Item label="Total" value="total" />
+              {availableYearsPorJogo.map(year => (
+                <Picker.Item key={year} label={year} value={year} />
+              ))}
+            </Picker>
+          </View>
+
+          <FlatList
+            data={games.filter(game => {
+              if (selectedYearPorJogo === 'total') return true;
+              return new Date(game.data).getFullYear().toString() === selectedYearPorJogo;
+            })}
+            renderItem={renderGame}
+            keyExtractor={(item) => item.id_jogo}
+            contentContainerStyle={styles.listContainer}
+            refreshing={loading}
+            onRefresh={loadGames}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: theme.text }]}>Nenhum jogo registrado</Text>
+              </View>
+            }
+          />
+        </View>
       ) : (
         <View style={[styles.mensalContainer, { backgroundColor: theme.background }]}> 
           <View style={[styles.pickerContainer, { backgroundColor: isDarkMode ? '#1a3a52' : '#e3f2fd', borderColor: isDarkMode ? '#2d5f8d' : '#90caf9' }]}>
@@ -567,7 +623,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 8,
     marginBottom: 12,
-    overflow: 'hidden'
+    marginTop: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
   },
   picker: {
     height: 56,

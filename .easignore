@@ -1,0 +1,31 @@
+# EAS Build ignore file
+# These files/folders won't be uploaded to EAS Build
+
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+
+# Build outputs
+android/app/build/
+android/build/
+android/.gradle/
+.gradle/
+
+# Temporary folders
+.gh-pages-temp/
+
+# Agent folder
+agent/
+
+# Netlify
+netlify/
+futebolasquartas/
+
+# Scripts
+*.ps1
+*.bat
+
+# Python
+*.py
+*.pyc

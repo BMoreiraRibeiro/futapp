@@ -180,15 +180,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initApp = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user?.id) {
+
+        // 🔒 CRÍTICO: Verifica validade do token antes de aceitar como autenticado
+        // E garante que NUNCA define isAuthenticated=true sem session válida
+        if (session?.user?.id && session.expires_at && (session.expires_at * 1000) > Date.now()) {
           setSession(session);
           setIsAuthenticated(true);
           await fetchClusterInfo();
+        } else if (session) {
+          // Sessão presente mas inválida/expirada -> limpar para evitar acesso não autorizado
+          console.warn('⚠️ initApp - Sessão expirada detectada, limpando...');
+          await clearSessionData();
+        } else {
+          // Sem sessão -> garantir estados limpos
+          await clearSessionData();
         }
       } catch (error) {
         console.error('Erro ao inicializar auth:', error);
+        // Em caso de erro ao obter sessão, limpamos dados locais por segurança
+        try {
+          await clearSessionData();
+        } catch (_) {}
       } finally {
+        // ⏱️ DELAY CRÍTICO: Pequeno delay antes de marcar como não-inicializando
+        // Garante que todos os estados foram atualizados
+        await new Promise(resolve => setTimeout(resolve, 100));
         setIsInitializing(false);
       }
     };

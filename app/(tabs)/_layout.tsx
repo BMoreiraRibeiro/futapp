@@ -1,11 +1,12 @@
 import { Tabs, useRouter } from 'expo-router';
 import { Shuffle, Trophy, Users, Settings, BarChart2, DollarSign } from 'lucide-react-native';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useLanguage } from '../../lib/language';
+import { PWAInstallBanner } from '../../components/PWAInstallBanner';
 
 function Header() {
   const { isDarkMode } = useTheme();
@@ -13,34 +14,39 @@ function Header() {
   const router = useRouter();
 
   return (
-    <LinearGradient
-      colors={['#1a1a2e', '#16213e', theme.primary]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.header}>
-      <View style={styles.headerContent}>
-        <View style={styles.titleRow}>
-          <View style={styles.iconWrapper}>
-            <Image 
-              source={require('../../assets/images/soccer_ball.png')}
-              style={styles.icon}
-            />
+    <>
+      {/* Banner PWA - apenas na web */}
+      {Platform.OS === 'web' && <PWAInstallBanner />}
+      
+      <LinearGradient
+        colors={['#1a1a2e', '#16213e', theme.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.titleRow}>
+            <View style={styles.iconWrapper}>
+              <Image 
+                source={require('../../assets/images/soccer_ball.png')}
+                style={styles.icon}
+              />
+            </View>
+            <Text style={styles.headerTitle}>
+              Futebol às quartas
+            </Text>
           </View>
-          <Text style={styles.headerTitle}>
-            Futebol às quartas
-          </Text>
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => router.push('/(tabs)/settings')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.settingsIconContainer}>
+              <Settings size={26} color="white" strokeWidth={2.5} />
+            </View>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity 
-          style={styles.settingsButton}
-          onPress={() => router.push('/(tabs)/settings')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.settingsIconContainer}>
-            <Settings size={26} color="white" strokeWidth={2.5} />
-          </View>
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
+      </LinearGradient>
+    </>
   );
 }
 

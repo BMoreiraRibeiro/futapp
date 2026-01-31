@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Modal, ScrollView, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
@@ -11,6 +11,7 @@ import { Check, X, Users } from 'lucide-react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useResults } from '../../lib/results';
 import { useLanguage } from '../../lib/language';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 type Player = {
   id_jogador: string;
@@ -18,6 +19,8 @@ type Player = {
   rating: number;
   visivel: boolean;
   selected?: boolean;
+  vitorias?: number;
+  golos_marcados?: number;
 };
 
 type Team = {
@@ -33,10 +36,10 @@ export default function IndexScreen() {
   const { clusterName } = useAuth();
   const { settings: clusterSettings, loading: clusterSettingsLoading } = useClusterSettings(clusterName);
   const { fetchResults } = useResults();
+  const queryClient = useQueryClient();
   const [players, setPlayers] = useState<Player[]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<Player[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ratingVariation, setRatingVariation] = useState('2');
   const [teamAName, setTeamAName] = useState('Equipa A');
@@ -55,10 +58,70 @@ export default function IndexScreen() {
   const router = useRouter();
   const { t } = useLanguage();
 
+  // Query com cache e refetch automático
+  const { data: playersData, isLoading, isRefetching, refetch } = useQuery({
+    queryKey: ['players', clusterName],
+    queryFn: async () => {
+      if (!clusterName) {
+        console.warn('fetchPlayers: clusterName é null');
+        return [];
+      }
+
+      try {
+        // Buscar jogadores e stats em paralelo
+        const [jogadoresResult, statsResult] = await Promise.all([
+          supabase
+            .from('jogadores')
+            .select('id_jogador, nome, rating, visivel')
+            .eq('cluster_uuid', clusterName)
+            .eq('visivel', true)
+            .order('nome'),
+          supabase
+            .from('player_stats')
+            .select('id_jogador, vitorias, golos_marcados')
+            .eq('cluster_uuid', clusterName)
+        ]);
+
+        if (jogadoresResult.error) throw jogadoresResult.error;
+
+        const jogadores = jogadoresResult.data || [];
+        const stats = statsResult.data || [];
+
+        // Criar map de stats por id_jogador
+        const statsMap = new Map(
+          stats.map(s => [s.id_jogador, s])
+        );
+
+        // Combinar jogadores com stats
+        return jogadores.map(jogador => ({
+          ...jogador,
+          vitorias: statsMap.get(jogador.id_jogador)?.vitorias || 0,
+          golos_marcados: statsMap.get(jogador.id_jogador)?.golos_marcados || 0
+        }));
+      } catch (error) {
+        console.error('Erro ao buscar jogadores:', error);
+        throw error;
+      }
+    },
+    enabled: !!clusterName,
+    staleTime: 3 * 60 * 1000, // 3 minutos
+  });
+
+  // Função para refresh manual (pull-to-refresh)
+  const onRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  // Atualizar players quando dados chegam
+  useEffect(() => {
+    if (playersData) {
+      setPlayers(playersData);
+    }
+  }, [playersData]);
+
   // Carrega configurações e jogadores quando o cluster ou as configurações do cluster mudam
   useEffect(() => {
     if (clusterName) {
-      fetchPlayers();
       // Se as configurações do cluster estiverem disponíveis, aplica-as
       if (!clusterSettingsLoading && clusterSettings) {
         setTeamAName(clusterSettings.team_a_name || 'Equipa A');
@@ -78,14 +141,14 @@ export default function IndexScreen() {
   useFocusEffect(
     useCallback(() => {
       if (clusterName) {
-        fetchPlayers();
+        queryClient.invalidateQueries({ queryKey: ['players', clusterName] });
         setSelectedPlayers([]);
         setPlayers(prevPlayers => 
           prevPlayers.map(player => ({ ...player, selected: false }))
         );
         loadTeamSettings();
       }
-    }, [clusterName])
+    }, [clusterName, queryClient])
   );
 
   const loadTeamSettings = async () => {
@@ -128,31 +191,6 @@ export default function IndexScreen() {
     setToastConfig(prev => ({ ...prev, visible: false }));
   };
 
-  const fetchPlayers = async () => {
-    if (!clusterName) {
-      console.warn('fetchPlayers: clusterName é null');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('jogadores')
-        .select('id_jogador, nome, rating, visivel')
-        .eq('cluster_uuid', clusterName)
-        .eq('visivel', true)
-        .order('nome');
-
-      if (error) throw error;
-      setPlayers(data || []);
-    } catch (error) {
-      console.error('Erro ao buscar jogadores:', error);
-      showToast('Erro ao carregar jogadores', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const togglePlayerSelection = (player: Player) => {
     setPlayers(prevPlayers => 
       prevPlayers.map(p => 
@@ -176,6 +214,23 @@ export default function IndexScreen() {
     if (teamPlayers.length === 0) return 0;
     const sum = teamPlayers.reduce((acc, player) => acc + player.rating, 0);
     return Number((sum / teamPlayers.length).toFixed(1));
+  };
+
+  const calculateTotalVitorias = (teamPlayers: Player[]): number => {
+    return teamPlayers.reduce((acc, player) => acc + (player.vitorias || 0), 0);
+  };
+
+  const calculateTotalGolos = (teamPlayers: Player[]): number => {
+    return teamPlayers.reduce((acc, player) => acc + (player.golos_marcados || 0), 0);
+  };
+
+  const calculateTeamDifference = (teamA: Player[], teamB: Player[]): number => {
+    const diffRating = Math.abs(calculateTeamAverage(teamA) - calculateTeamAverage(teamB));
+    const diffVitorias = Math.abs(calculateTotalVitorias(teamA) - calculateTotalVitorias(teamB));
+    const diffGolos = Math.abs(calculateTotalGolos(teamA) - calculateTotalGolos(teamB));
+    
+    // Pesos: Rating=1.0, Vitórias=0.4, Golos=0.2
+    return (diffRating * 1.0) + (diffVitorias * 0.4) + (diffGolos * 0.2);
   };
 
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -202,7 +257,7 @@ export default function IndexScreen() {
     let attempts = 0;
     const maxAttempts = 100;
     let bestTeams: Team[] | null = null;
-    let bestVariation = Infinity;
+    let bestDifference = Infinity;
 
     while (attempts < maxAttempts) {
       const shuffledPlayers = shuffleArray([...selectedPlayers]);
@@ -219,10 +274,13 @@ export default function IndexScreen() {
 
       const avgTeamA = calculateTeamAverage(teamA);
       const avgTeamB = calculateTeamAverage(teamB);
-      const variation = Math.abs(avgTeamA - avgTeamB);
+      const ratingVariation = Math.abs(avgTeamA - avgTeamB);
+      
+      // Calcular diferença multi-critério (rating + vitórias + golos)
+      const totalDifference = calculateTeamDifference(teamA, teamB);
 
-      if (variation < bestVariation) {
-        bestVariation = variation;
+      if (totalDifference < bestDifference) {
+        bestDifference = totalDifference;
         bestTeams = [
           {
             name: teamAName,
@@ -239,7 +297,8 @@ export default function IndexScreen() {
         ];
       }
 
-      if (variation <= maxVariation) {
+      // Aceitar se o rating variation está dentro do limite E a diferença total é razoável
+      if (ratingVariation <= maxVariation && totalDifference <= maxVariation * 3) {
         setTeams([
           {
             name: teamAName,
@@ -411,8 +470,14 @@ export default function IndexScreen() {
             renderItem={renderPlayer}
             keyExtractor={(item) => item.nome}
             contentContainerStyle={styles.listContainer}
-            refreshing={loading}
-            onRefresh={fetchPlayers}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={onRefresh}
+                colors={[theme.primary]}
+                tintColor={theme.primary}
+              />
+            }
           />
         </View>
 
@@ -479,13 +544,13 @@ export default function IndexScreen() {
           style={[
             styles.drawButton,
             { backgroundColor: theme.primary },
-            (selectedPlayers.length < 2 || loading) && styles.disabledButton
+            (selectedPlayers.length < 2 || isLoading) && styles.disabledButton
           ]}
           onPress={drawTeams}
-          disabled={selectedPlayers.length < 2 || loading}
+          disabled={selectedPlayers.length < 2 || isLoading}
         >
           <Text style={[styles.drawButtonText, { color: theme.text }]}>
-            {loading ? t('common.loading') : t('index.randomizeTeams')}
+            {isLoading ? t('common.loading') : t('index.randomizeTeams')}
           </Text>
         </TouchableOpacity>
       </View>

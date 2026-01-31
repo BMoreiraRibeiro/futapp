@@ -1,0 +1,105 @@
+{
+  "name": "FutBeer - Gestão de Futebol",
+  "short_name": "FutBeer",
+  "description": "App de gestão de futebol com amigos - Cria clubes, gere jogadores, acompanha resultados",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#00A859",
+  "background_color": "#00A859",
+  "lang": "pt-PT",
+  "dir": "ltr",
+  "categories": ["sports", "social"],
+  "icons": [
+    {
+  "src": "/images/android/mipmap-ldpi/ic_launcher.png",
+      "sizes": "36x36",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+  "src": "/images/android/mipmap-mdpi/ic_launcher.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+  "src": "/images/android/mipmap-hdpi/ic_launcher.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+  "src": "/images/android/mipmap-xhdpi/ic_launcher.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+  "src": "/images/android/mipmap-xxhdpi/ic_launcher.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+  "src": "/images/android/mipmap-xxxhdpi/ic_launcher.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+  "src": "/images/android/ic_launcher-web.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.bmoreiraribeiro.fut",
+      "id": "com.bmoreiraribeiro.fut"
+    }
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Ver Resultados",
+      "short_name": "Resultados",
+      "description": "Ver resultados dos jogos",
+      "url": "/(tabs)/results",
+      "icons": [
+        {
+          "src": "/images/android/mipmap-xxhdpi/ic_launcher.png",
+          "sizes": "144x144"
+        }
+      ]
+    },
+    {
+      "name": "Jogadores",
+      "short_name": "Jogadores",
+      "description": "Gerir jogadores do clube",
+      "url": "/(tabs)/players",
+      "icons": [
+        {
+          "src": "/images/android/mipmap-xxhdpi/ic_launcher.png",
+          "sizes": "144x144"
+        }
+      ]
+    },
+    {
+      "name": "Rankings",
+      "short_name": "Rankings",
+      "description": "Ver rankings e estatísticas",
+      "url": "/(tabs)/rankings",
+      "icons": [
+        {
+          "src": "/images/android/mipmap-xxhdpi/ic_launcher.png",
+          "sizes": "144x144"
+        }
+      ]
+    }
+  ]
+}

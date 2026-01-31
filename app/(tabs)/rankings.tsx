@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, FlatList, RefreshControl } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useTheme } from '../../lib/theme';
 import { colors } from '../../lib/colors';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 
 import { useLanguage } from '../../lib/language';
 
@@ -25,7 +26,6 @@ export default function RankingsScreen() {
   const theme = isDarkMode ? colors.dark : colors.light;
   const { clusterName } = useAuth();
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
   const [players, setPlayers] = useState<PlayerStats[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>('total');
   const [availableYears, setAvailableYears] = useState<string[]>([]);
@@ -37,65 +37,14 @@ export default function RankingsScreen() {
     order: 'desc'
   });
 
-  useEffect(() => {
-    if (clusterName) {
-      loadAvailableYears();
-      loadRankings();
-    }
-  }, [clusterName, selectedYear]);
-
-  const loadAvailableYears = async () => {
-    try {
-      if (!clusterName) {
-        console.warn('loadAvailableYears: clusterName é null');
-        return;
-      }
-
-      const { data: games, error } = await supabase
-        .from('resultados_jogos')
-        .select('data')
-        .eq('cluster_uuid', clusterName);
-
-      if (error) throw error;
-
-      // Garantir que temos jogos antes de processar
-      if (!games || games.length === 0) {
-        setAvailableYears([]);
-        return;
-      }
-
-      const years = games
-        .map(game => {
-          const date = new Date(game.data);
-          // Verificar se a data é válida
-          return isNaN(date.getTime()) ? null : date.getFullYear().toString();
-        })
-        .filter((year): year is string => 
-          year !== null && !isNaN(parseInt(year))
-        )
-        .filter((year, index, self) => self.indexOf(year) === index)
-        .sort((a, b) => b.localeCompare(a));
-
-      setAvailableYears(years);
-      // Default to current year if available
-      const currentYear = new Date().getFullYear().toString();
-      if (years.includes(currentYear)) {
-        setSelectedYear(currentYear);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar anos disponíveis:', error);
-    }
-  };
-
-  const loadRankings = async () => {
-    try {
+  // Query com cache para rankings
+  const { data: rankingsData, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['rankings', clusterName, selectedYear],
+    queryFn: async () => {
       if (!clusterName) {
         console.warn('loadRankings: clusterName é null');
-        setLoading(false);
-        return;
+        return [];
       }
-
-      setLoading(true);
 
       // Query base para jogos
       let gamesQuery = supabase
@@ -144,7 +93,7 @@ export default function RankingsScreen() {
       const games = gamesResult.data;
       const goals = goalsResult.data;
 
-      // 3. Processar os dados para criar as estatísticas
+      // Processar os dados para criar as estatísticas
       const playerStats = new Map<string, PlayerStats>();
 
       // Primeiro, buscar todos os jogadores para ter o mapeamento id -> nome
@@ -153,20 +102,17 @@ export default function RankingsScreen() {
         .select('id_jogador, nome')
         .eq('cluster_uuid', clusterName);
 
-      const playerIdToName = new Map(
-        allPlayers?.map(p => [p.id_jogador, p.nome]) || []
-      );
+      const playerMap = new Map(allPlayers?.map(p => [p.id_jogador, p.nome]) || []);
 
-      // Inicializar estatísticas para todos os jogadores que participaram de jogos
+      // Processar jogos
       games?.forEach(game => {
-        // jogadores_equipa_a e jogadores_equipa_b agora são arrays de UUIDs
-        const playersA = game.jogadores_equipa_a || [];
-        const playersB = game.jogadores_equipa_b || [];
+        const teamAPlayers = game.jogadores_equipa_a || [];
+        const teamBPlayers = game.jogadores_equipa_b || [];
         
-        [...playersA, ...playersB].forEach(playerId => {
-          const playerName = playerIdToName.get(playerId);
+        [...teamAPlayers, ...teamBPlayers].forEach(playerId => {
+          const playerName = playerMap.get(playerId);
           if (!playerName) return;
-          
+
           if (!playerStats.has(playerName)) {
             playerStats.set(playerName, {
               nome: playerName,
@@ -177,42 +123,107 @@ export default function RankingsScreen() {
               golos: 0
             });
           }
+
           const stats = playerStats.get(playerName)!;
           stats.jogos++;
 
-          if (game.vencedor) {
-            if (game.vencedor === 'E') {
-              stats.empates++;
-            } else if (
-              (game.vencedor === 'A' && playersA.includes(playerId)) ||
-              (game.vencedor === 'B' && playersB.includes(playerId))
-            ) {
-              stats.vitorias++;
-            } else {
-              stats.derrotas++;
-            }
+          const isTeamA = teamAPlayers.includes(playerId);
+          
+          if (game.vencedor === 'Empate') {
+            stats.empates++;
+          } else if (
+            (isTeamA && game.vencedor === 'A') ||
+            (!isTeamA && game.vencedor === 'B')
+          ) {
+            stats.vitorias++;
+          } else {
+            stats.derrotas++;
           }
         });
       });
 
-      // Adicionar gols aos jogadores
+      // Processar golos
       goals?.forEach(goal => {
-        // @ts-ignore - o tipo do retorno está complexo, mas sabemos a estrutura
-        const playerName = goal.jogadores?.nome;
-        if (playerName) {
-          const stats = playerStats.get(playerName);
-          if (stats) {
-            stats.golos += goal.numero_golos;
-          }
+        const playerName = (goal.jogadores as any)?.nome;
+        if (!playerName) return;
+
+        if (!playerStats.has(playerName)) {
+          playerStats.set(playerName, {
+            nome: playerName,
+            jogos: 0,
+            vitorias: 0,
+            empates: 0,
+            derrotas: 0,
+            golos: 0
+          });
         }
+
+        const stats = playerStats.get(playerName)!;
+        stats.golos += goal.numero_golos || 0;
       });
 
-      setPlayers(Array.from(playerStats.values()));
-    } catch (error) {
-      console.error('Erro ao carregar rankings:', error);
-    } finally {
-      setLoading(false);
+      return Array.from(playerStats.values());
+    },
+    enabled: !!clusterName,
+    staleTime: 2 * 60 * 1000, // 2 minutos
+  });
+
+  // Atualizar players quando dados chegam
+  useEffect(() => {
+    if (rankingsData) {
+      setPlayers(rankingsData);
     }
+  }, [rankingsData]);
+
+  useEffect(() => {
+    if (clusterName) {
+      loadAvailableYears();
+    }
+  }, [clusterName, selectedYear]);
+
+  const loadAvailableYears = async () => {
+    try {
+      if (!clusterName) {
+        console.warn('loadAvailableYears: clusterName é null');
+        return;
+      }
+
+      const { data: games, error } = await supabase
+        .from('resultados_jogos')
+        .select('data')
+        .eq('cluster_uuid', clusterName);
+
+      if (error) throw error;
+
+      // Garantir que temos jogos antes de processar
+      if (!games || games.length === 0) {
+        setAvailableYears([]);
+        return;
+      }
+
+      const years = games
+        .map(game => {
+          const date = new Date(game.data);
+          // Verificar se a data é válida
+          return isNaN(date.getTime()) ? null : date.getFullYear().toString();
+        })
+        .filter((year): year is string => 
+          year !== null && !isNaN(parseInt(year))
+        )
+        .filter((year, index, self) => self.indexOf(year) === index)
+        .sort((a, b) => b.localeCompare(a));
+
+      setAvailableYears(years);
+    } catch (error) {
+      console.error('Erro ao carregar anos disponíveis:', error);
+    }
+  };
+
+  const getSortedPlayers = () => {
+    return [...players].sort((a, b) => {
+      const multiplier = sortConfig.order === 'desc' ? -1 : 1;
+      return (a[sortConfig.field] - b[sortConfig.field]) * multiplier;
+    });
   };
 
   const handleSort = (field: SortField) => {
@@ -222,10 +233,7 @@ export default function RankingsScreen() {
     }));
   };
 
-  const sortedPlayers = [...players].sort((a, b) => {
-    const multiplier = sortConfig.order === 'desc' ? -1 : 1;
-    return (a[sortConfig.field] - b[sortConfig.field]) * multiplier;
-  });
+  const sortedPlayers = getSortedPlayers();
 
   const SortButton = ({ field, label }: { field: SortField; label: string }) => {
     const isActive = sortConfig.field === field;
@@ -398,8 +406,14 @@ export default function RankingsScreen() {
             renderItem={renderPlayer}
             keyExtractor={(item) => item.nome}
             contentContainerStyle={styles.listContent}
-            refreshing={loading}
-            onRefresh={loadRankings}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={() => refetch()}
+                colors={[theme.primary]}
+                tintColor={theme.primary}
+              />
+            }
           />
         </View>
       </View>
