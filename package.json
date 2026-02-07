@@ -6,9 +6,9 @@
   "private": true,
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start",
-    "build:web": "expo export -p web && powershell -ExecutionPolicy Bypass -File ./copy-web-files.ps1",
+    "build:web": "expo export -p web && node copy-web-files.js",
     "build:web:clean": "expo export -p web",
-    "copy:web": "powershell -ExecutionPolicy Bypass -File ./copy-web-files.ps1",
+    "copy:web": "node copy-web-files.js",
     "lint": "expo lint",
     "android": "expo run:android",
     "ios": "expo run:ios",
